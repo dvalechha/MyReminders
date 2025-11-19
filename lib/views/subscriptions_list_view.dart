@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/subscription_provider.dart';
+import '../providers/navigation_model.dart';
 import '../models/subscription.dart';
 import 'subscription_form_view.dart';
 
@@ -10,36 +11,49 @@ class SubscriptionsListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Subscriptions'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SubscriptionFormView(),
-                ),
-              );
-            },
+    final navigationModel = Provider.of<NavigationModel>(context, listen: false);
+    
+    return Consumer<SubscriptionProvider>(
+      builder: (context, provider, child) {
+        if (provider.isLoading) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('My Subscriptions'),
+              leading: IconButton(
+                icon: const Icon(Icons.home),
+                onPressed: () => navigationModel.popToRoot(),
+              ),
+            ),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('My Subscriptions'),
+            leading: IconButton(
+              icon: const Icon(Icons.home),
+              onPressed: () => navigationModel.popToRoot(),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SubscriptionFormView(),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-        ],
-      ),
-      body: Consumer<SubscriptionProvider>(
-        builder: (context, provider, child) {
-          if (provider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (provider.subscriptions.isEmpty) {
-            return _buildEmptyState(context);
-          }
-
-          return _buildSubscriptionsList(context, provider);
-        },
-      ),
+          body: provider.subscriptions.isEmpty
+              ? _buildEmptyState(context)
+              : _buildSubscriptionsList(context, provider),
+        );
+      },
     );
   }
 
@@ -50,41 +64,27 @@ class SubscriptionsListView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Icon(
+              Icons.credit_card,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
             const Text(
-              'Welcome to Subscription Tracker 👋',
+              'No Subscriptions',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w600,
               ),
-              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Start by adding your first subscription to see your total monthly spend here.',
+            const SizedBox(height: 8),
+            Text(
+              'Tap the + button to add your first subscription',
               style: TextStyle(
                 fontSize: 16,
-                color: Colors.grey,
+                color: Colors.grey[600],
               ),
               textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SubscriptionFormView(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.add_circle),
-              label: const Text('Add Subscription'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-              ),
             ),
           ],
         ),
