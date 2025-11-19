@@ -349,6 +349,16 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                       }
                     },
                   ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 8),
+                    child: Text(
+                      'If you\'re not sure, an approximate date is fine - you can update it anytime.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey[600],
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<BillingCycle>(
                     value: _selectedBillingCycle,
@@ -398,6 +408,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                       decoration: const InputDecoration(
                         labelText: 'Notes',
                         border: OutlineInputBorder(),
+                        floatingLabelBehavior: FloatingLabelBehavior.always,
                       ),
                       maxLines: 3,
                     ),
@@ -407,6 +418,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                       decoration: const InputDecoration(
                         labelText: 'Payment Method',
                         border: OutlineInputBorder(),
+                        floatingLabelBehavior: FloatingLabelBehavior.always,
                       ),
                     ),
                   ] else
