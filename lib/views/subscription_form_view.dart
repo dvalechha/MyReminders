@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/subscription.dart';
@@ -24,6 +25,23 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
   final _paymentMethodController = TextEditingController();
+  
+  static const String _paymentPrefix = 'xxxx-xxxx-xxxx-';
+  
+  String _getPaymentMethodLast4() {
+    final text = _paymentMethodController.text;
+    if (text.length > _paymentPrefix.length) {
+      return text.substring(_paymentPrefix.length);
+    }
+    return '';
+  }
+  
+  void _setPaymentMethodLast4(String last4) {
+    _paymentMethodController.text = '$_paymentPrefix$last4';
+    _paymentMethodController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _paymentMethodController.text.length),
+    );
+  }
 
   SubscriptionCategory _selectedCategory = SubscriptionCategory.entertainment;
   Currency _selectedCurrency = Currency.usd;
@@ -38,6 +56,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
   @override
   void initState() {
     super.initState();
+    _paymentMethodController.text = _paymentPrefix;
     _checkNotificationPermission();
     if (widget.subscription != null) {
       _loadSubscriptionData();
@@ -64,7 +83,11 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
     _selectedReminder = sub.reminder;
     _customReminderDays = sub.reminderDaysBefore;
     _notesController.text = sub.notes ?? '';
-    _paymentMethodController.text = sub.paymentMethod ?? '';
+    if (sub.paymentMethod != null && sub.paymentMethod!.isNotEmpty) {
+      _setPaymentMethodLast4(sub.paymentMethod!);
+    } else {
+      _paymentMethodController.text = _paymentPrefix;
+    }
   }
 
   @override
@@ -166,9 +189,9 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
-      paymentMethod: _paymentMethodController.text.trim().isEmpty
+      paymentMethod: _getPaymentMethodLast4().isEmpty
           ? null
-          : _paymentMethodController.text.trim(),
+          : _getPaymentMethodLast4(),
     );
 
     try {
@@ -187,6 +210,28 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
         );
       }
     }
+  }
+
+  Widget _buildRequiredLabel(String text) {
+    return Row(
+      children: [
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[700],
+          ),
+        ),
+        const Text(
+          ' *',
+          style: TextStyle(
+            color: Colors.red,
+            fontSize: 14,
+            fontWeight: FontWeight.normal,
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -245,10 +290,11 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                     ),
                   ),
                   const SizedBox(height: 8),
+                  _buildRequiredLabel('Service Name'),
+                  const SizedBox(height: 4),
                   TextFormField(
                     controller: _serviceNameController,
                     decoration: const InputDecoration(
-                      labelText: 'Service Name',
                       border: OutlineInputBorder(),
                     ),
                     validator: (value) {
@@ -259,10 +305,11 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                     },
                   ),
                   const SizedBox(height: 16),
+                  _buildRequiredLabel('Category'),
+                  const SizedBox(height: 4),
                   DropdownButtonFormField<SubscriptionCategory>(
                     value: _selectedCategory,
                     decoration: const InputDecoration(
-                      labelText: 'Category',
                       border: OutlineInputBorder(),
                     ),
                     items: SubscriptionCategory.values.map((category) {
@@ -278,13 +325,14 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                     },
                   ),
                   const SizedBox(height: 16),
+                  _buildRequiredLabel('Amount'),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Expanded(
                         child: TextFormField(
                           controller: _amountController,
                           decoration: const InputDecoration(
-                            labelText: 'Amount',
                             border: OutlineInputBorder(),
                           ),
                           keyboardType:
@@ -333,8 +381,12 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                     ),
                   ),
                   const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16, bottom: 4),
+                    child: _buildRequiredLabel('Renewal Date'),
+                  ),
                   ListTile(
-                    title: const Text('Renewal Date'),
+                    title: const Text(''),
                     subtitle: Text(DateFormat('MMM d, yyyy').format(_selectedRenewalDate)),
                     trailing: const Icon(Icons.calendar_today),
                     onTap: () async {
@@ -360,10 +412,11 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                     ),
                   ),
                   const SizedBox(height: 8),
+                  _buildRequiredLabel('Billing Cycle'),
+                  const SizedBox(height: 4),
                   DropdownButtonFormField<BillingCycle>(
                     value: _selectedBillingCycle,
                     decoration: const InputDecoration(
-                      labelText: 'Billing Cycle',
                       border: OutlineInputBorder(),
                     ),
                     items: BillingCycle.values.map((cycle) {
@@ -420,6 +473,33 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                         border: OutlineInputBorder(),
                         floatingLabelBehavior: FloatingLabelBehavior.always,
                       ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        _PaymentMethodInputFormatter(),
+                      ],
+                      onChanged: (value) {
+                        // Ensure prefix is always present
+                        if (!value.startsWith(_paymentPrefix)) {
+                          final last4 = _getPaymentMethodLast4();
+                          _setPaymentMethodLast4(last4);
+                        } else {
+                          // Limit to 4 digits after prefix
+                          final last4 = value.substring(_paymentPrefix.length);
+                          if (last4.length > 4) {
+                            _setPaymentMethodLast4(last4.substring(0, 4));
+                          }
+                        }
+                      },
+                      onTap: () {
+                        // Move cursor to end if prefix is not complete
+                        if (_paymentMethodController.text.length < _paymentPrefix.length) {
+                          _paymentMethodController.text = _paymentPrefix;
+                        }
+                        _paymentMethodController.selection = TextSelection.fromPosition(
+                          TextPosition(offset: _paymentMethodController.text.length),
+                        );
+                      },
                     ),
                   ] else
                     ListTile(
@@ -497,6 +577,53 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
           );
         }).toList(),
       ),
+    );
+  }
+}
+
+class _PaymentMethodInputFormatter extends TextInputFormatter {
+  static const String prefix = 'xxxx-xxxx-xxxx-';
+  
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // If text doesn't start with prefix, add it
+    if (!newValue.text.startsWith(prefix)) {
+      // Extract only digits from the new value
+      final digits = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
+      
+      // Limit to 4 digits
+      final last4 = digits.length > 4 ? digits.substring(0, 4) : digits;
+      
+      final newText = '$prefix$last4';
+      return TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newText.length),
+      );
+    }
+    
+    // Extract only the part after the prefix
+    final afterPrefix = newValue.text.length > prefix.length
+        ? newValue.text.substring(prefix.length)
+        : '';
+    
+    // Filter to only digits and limit to 4
+    final digits = afterPrefix.replaceAll(RegExp(r'[^\d]'), '');
+    final last4 = digits.length > 4 ? digits.substring(0, 4) : digits;
+    
+    final newText = '$prefix$last4';
+    
+    // Calculate cursor position
+    int cursorPosition = newText.length;
+    if (newValue.selection.baseOffset > prefix.length) {
+      cursorPosition = prefix.length + last4.length;
+    }
+    
+    return TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: cursorPosition),
     );
   }
 }

@@ -1,6 +1,9 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/subscription.dart';
+import '../models/appointment.dart';
+import '../models/task.dart';
+import '../models/custom_reminder.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -20,8 +23,9 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -43,6 +47,92 @@ class DatabaseHelper {
         paymentMethod TEXT
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE appointments (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        category TEXT,
+        dateTime TEXT NOT NULL,
+        location TEXT,
+        notes TEXT,
+        reminderOffset INTEGER NOT NULL,
+        notificationId TEXT,
+        createdDate TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE tasks (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        category TEXT,
+        dueDate TEXT,
+        priority TEXT,
+        notes TEXT,
+        reminderOffset INTEGER NOT NULL,
+        notificationId TEXT,
+        createdDate TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE custom_reminders (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        category TEXT,
+        dateTime TEXT,
+        notes TEXT,
+        reminderOffset INTEGER NOT NULL,
+        notificationId TEXT,
+        createdDate TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS appointments (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          category TEXT,
+          dateTime TEXT NOT NULL,
+          location TEXT,
+          notes TEXT,
+          reminderOffset INTEGER NOT NULL,
+          notificationId TEXT,
+          createdDate TEXT NOT NULL
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS tasks (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          category TEXT,
+          dueDate TEXT,
+          priority TEXT,
+          notes TEXT,
+          reminderOffset INTEGER NOT NULL,
+          notificationId TEXT,
+          createdDate TEXT NOT NULL
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS custom_reminders (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          category TEXT,
+          dateTime TEXT,
+          notes TEXT,
+          reminderOffset INTEGER NOT NULL,
+          notificationId TEXT,
+          createdDate TEXT NOT NULL
+        )
+      ''');
+    }
   }
 
   // Insert subscription
@@ -108,6 +198,137 @@ class DatabaseHelper {
   Future<void> close() async {
     final db = await database;
     await db.close();
+  }
+
+  // ========== APPOINTMENTS ==========
+  Future<String> insertAppointment(Appointment appointment) async {
+    final db = await database;
+    await db.insert('appointments', appointment.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace);
+    return appointment.id;
+  }
+
+  Future<List<Appointment>> getAllAppointments() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'appointments',
+      orderBy: 'dateTime ASC',
+    );
+    return List.generate(maps.length, (i) => Appointment.fromMap(maps[i]));
+  }
+
+  Future<Appointment?> getAppointmentById(String id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'appointments',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isEmpty) return null;
+    return Appointment.fromMap(maps.first);
+  }
+
+  Future<int> updateAppointment(Appointment appointment) async {
+    final db = await database;
+    return await db.update(
+      'appointments',
+      appointment.toMap(),
+      where: 'id = ?',
+      whereArgs: [appointment.id],
+    );
+  }
+
+  Future<int> deleteAppointment(String id) async {
+    final db = await database;
+    return await db.delete('appointments', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ========== TASKS ==========
+  Future<String> insertTask(Task task) async {
+    final db = await database;
+    await db.insert('tasks', task.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace);
+    return task.id;
+  }
+
+  Future<List<Task>> getAllTasks() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'tasks',
+      orderBy: 'dueDate ASC, createdDate DESC',
+    );
+    return List.generate(maps.length, (i) => Task.fromMap(maps[i]));
+  }
+
+  Future<Task?> getTaskById(String id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'tasks',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isEmpty) return null;
+    return Task.fromMap(maps.first);
+  }
+
+  Future<int> updateTask(Task task) async {
+    final db = await database;
+    return await db.update(
+      'tasks',
+      task.toMap(),
+      where: 'id = ?',
+      whereArgs: [task.id],
+    );
+  }
+
+  Future<int> deleteTask(String id) async {
+    final db = await database;
+    return await db.delete('tasks', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ========== CUSTOM REMINDERS ==========
+  Future<String> insertCustomReminder(CustomReminder reminder) async {
+    final db = await database;
+    await db.insert('custom_reminders', reminder.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace);
+    return reminder.id;
+  }
+
+  Future<List<CustomReminder>> getAllCustomReminders() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'custom_reminders',
+      orderBy: 'dateTime ASC, createdDate DESC',
+    );
+    return List.generate(
+        maps.length, (i) => CustomReminder.fromMap(maps[i]));
+  }
+
+  Future<CustomReminder?> getCustomReminderById(String id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'custom_reminders',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isEmpty) return null;
+    return CustomReminder.fromMap(maps.first);
+  }
+
+  Future<int> updateCustomReminder(CustomReminder reminder) async {
+    final db = await database;
+    return await db.update(
+      'custom_reminders',
+      reminder.toMap(),
+      where: 'id = ?',
+      whereArgs: [reminder.id],
+    );
+  }
+
+  Future<int> deleteCustomReminder(String id) async {
+    final db = await database;
+    return await db.delete('custom_reminders',
+        where: 'id = ?', whereArgs: [id]);
   }
 }
 

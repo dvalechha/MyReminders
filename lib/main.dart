@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/subscription_provider.dart';
+import 'providers/appointment_provider.dart';
+import 'providers/task_provider.dart';
+import 'providers/custom_reminder_provider.dart';
 import 'providers/navigation_model.dart';
 import 'views/welcome_view.dart';
 
@@ -17,6 +20,9 @@ class MyReminderApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
+        ChangeNotifierProvider(create: (_) => AppointmentProvider()),
+        ChangeNotifierProvider(create: (_) => TaskProvider()),
+        ChangeNotifierProvider(create: (_) => CustomReminderProvider()),
         ChangeNotifierProvider(create: (_) => NavigationModel()),
       ],
       child: Consumer<NavigationModel>(
