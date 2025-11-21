@@ -1,0 +1,316 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import '../models/appointment.dart';
+import '../providers/appointment_provider.dart';
+
+class AppointmentFormView extends StatefulWidget {
+  final Appointment? appointment;
+
+  const AppointmentFormView({
+    super.key,
+    this.appointment,
+  });
+
+  @override
+  State<AppointmentFormView> createState() => _AppointmentFormViewState();
+}
+
+class _AppointmentFormViewState extends State<AppointmentFormView> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _categoryController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _notesController = TextEditingController();
+
+  DateTime _selectedDateTime = DateTime.now();
+  ReminderOffset _selectedReminder = ReminderOffset.none;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.appointment != null) {
+      _loadAppointmentData();
+    }
+  }
+
+  void _loadAppointmentData() {
+    final apt = widget.appointment!;
+    _titleController.text = apt.title;
+    _categoryController.text = apt.category ?? '';
+    _locationController.text = apt.location ?? '';
+    _notesController.text = apt.notes ?? '';
+    _selectedDateTime = apt.dateTime;
+    _selectedReminder = apt.reminderOffset;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _categoryController.dispose();
+    _locationController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  bool get _isFormValid {
+    return _titleController.text.trim().isNotEmpty;
+  }
+
+  Widget _buildRequiredLabel(String text) {
+    return Row(
+      children: [
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[700],
+          ),
+        ),
+        const Text(
+          ' *',
+          style: TextStyle(
+            color: Colors.red,
+            fontSize: 14,
+            fontWeight: FontWeight.normal,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _selectDateTime() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _selectedDateTime,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+    );
+    if (date != null) {
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_selectedDateTime),
+      );
+      if (time != null) {
+        setState(() {
+          _selectedDateTime = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            time.hour,
+            time.minute,
+          );
+        });
+      } else {
+        // If time picker is cancelled but date was selected, set time to current time
+        setState(() {
+          final now = DateTime.now();
+          _selectedDateTime = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            now.hour,
+            now.minute,
+          );
+        });
+      }
+    }
+  }
+
+  Future<void> _saveAppointment() async {
+    if (!_formKey.currentState!.validate() || !_isFormValid) {
+      return;
+    }
+
+    final provider = Provider.of<AppointmentProvider>(context, listen: false);
+
+    final appointment = Appointment(
+      id: widget.appointment?.id,
+      title: _titleController.text.trim(),
+      category: _categoryController.text.trim().isEmpty
+          ? null
+          : _categoryController.text.trim(),
+      dateTime: _selectedDateTime,
+      location: _locationController.text.trim().isEmpty
+          ? null
+          : _locationController.text.trim(),
+      notes: _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim(),
+      reminderOffset: _selectedReminder,
+      notificationId: widget.appointment?.notificationId,
+    );
+
+    try {
+      if (widget.appointment == null) {
+        await provider.addAppointment(appointment);
+      } else {
+        await provider.updateAppointment(appointment);
+      }
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving appointment: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.appointment == null
+            ? 'Add Appointment'
+            : 'Edit Appointment'),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const Text(
+                    'APPOINTMENT DETAILS',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildRequiredLabel('Title'),
+                  const SizedBox(height: 4),
+                  TextFormField(
+                    controller: _titleController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a title';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _categoryController,
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      border: OutlineInputBorder(),
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildRequiredLabel('Date & Time'),
+                  const SizedBox(height: 4),
+                  ListTile(
+                    title: Text(DateFormat('MMM d, yyyy').format(_selectedDateTime)),
+                    subtitle: Text(DateFormat('h:mm a').format(_selectedDateTime)),
+                    trailing: const Icon(Icons.calendar_today),
+                    onTap: _selectDateTime,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      side: BorderSide(color: Colors.grey[300]!),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _locationController,
+                    decoration: const InputDecoration(
+                      labelText: 'Location',
+                      border: OutlineInputBorder(),
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _notesController,
+                    decoration: const InputDecoration(
+                      labelText: 'Notes',
+                      border: OutlineInputBorder(),
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'REMINDER',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<ReminderOffset>(
+                    value: _selectedReminder,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
+                    items: ReminderOffset.values.map((offset) {
+                      return DropdownMenuItem(
+                        value: offset,
+                        child: Text(offset.value),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _selectedReminder = value);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withValues(alpha: 0.2),
+                    spreadRadius: 1,
+                    blurRadius: 4,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isFormValid ? _saveAppointment : null,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: _isFormValid ? Colors.blue : Colors.grey,
+                  ),
+                  child: Text(
+                    widget.appointment == null
+                        ? 'Save Appointment'
+                        : 'Update Appointment',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

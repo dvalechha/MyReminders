@@ -4,7 +4,11 @@ enum SubscriptionCategory {
   entertainment('Entertainment'),
   utilities('Utilities'),
   productivity('Productivity'),
+  retail('Retail'),
   health('Health'),
+  travel('Travel'),
+  food('Food'),
+  insurance('Insurance'),
   other('Other');
 
   const SubscriptionCategory(this.value);
