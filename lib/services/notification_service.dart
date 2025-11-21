@@ -254,5 +254,57 @@ class NotificationService {
       }
     }
   }
+
+  // Schedule time-based reminder (for appointments, tasks, custom reminders)
+  Future<void> scheduleTimeBasedReminder({
+    required String notificationId,
+    required String title,
+    required String body,
+    required DateTime eventDateTime,
+    required int minutesBefore,
+  }) async {
+    if (!_authorized) {
+      print('Notifications not authorized, skipping schedule');
+      return;
+    }
+
+    if (minutesBefore <= 0) return;
+
+    final reminderTime = eventDateTime.subtract(Duration(minutes: minutesBefore));
+
+    if (reminderTime.isBefore(DateTime.now())) return;
+
+    final androidDetails = AndroidNotificationDetails(
+      'time_based_reminders',
+      'Time-Based Reminders',
+      channelDescription: 'Notifications for appointments, tasks, and custom reminders',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    final iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    final notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _notifications.zonedSchedule(
+      notificationId.hashCode.abs(),
+      title,
+      body,
+      tz.TZDateTime.from(reminderTime, tz.local),
+      notificationDetails,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
+
+    print('Time-based reminder scheduled for $reminderTime (notificationId: $notificationId)');
+  }
 }
 
