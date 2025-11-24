@@ -261,7 +261,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                       margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
                         color: Colors.orange.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
@@ -290,12 +290,12 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _buildRequiredLabel('Service Name'),
-                  const SizedBox(height: 4),
                   TextFormField(
                     controller: _serviceNameController,
                     decoration: const InputDecoration(
+                      labelText: 'Service Name *',
                       border: OutlineInputBorder(),
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -305,12 +305,12 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  _buildRequiredLabel('Category'),
-                  const SizedBox(height: 4),
                   DropdownButtonFormField<SubscriptionCategory>(
                     value: _selectedCategory,
                     decoration: const InputDecoration(
+                      labelText: 'Category *',
                       border: OutlineInputBorder(),
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
                     ),
                     items: SubscriptionCategory.values.map((category) {
                       return DropdownMenuItem(
@@ -325,15 +325,15 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  _buildRequiredLabel('Amount'),
-                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Expanded(
                         child: TextFormField(
                           controller: _amountController,
                           decoration: const InputDecoration(
+                            labelText: 'Amount *',
                             border: OutlineInputBorder(),
+                            floatingLabelBehavior: FloatingLabelBehavior.always,
                           ),
                           keyboardType:
                               const TextInputType.numberWithOptions(decimal: true),
@@ -353,7 +353,9 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                         child: DropdownButtonFormField<Currency>(
                           value: _selectedCurrency,
                           decoration: const InputDecoration(
+                            labelText: 'Currency',
                             border: OutlineInputBorder(),
+                            floatingLabelBehavior: FloatingLabelBehavior.always,
                           ),
                           items: Currency.values.map((currency) {
                             return DropdownMenuItem(
@@ -381,12 +383,8 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 16, bottom: 4),
-                    child: _buildRequiredLabel('Renewal Date'),
-                  ),
                   ListTile(
-                    title: const Text(''),
+                    title: const Text('Renewal Date *'),
                     subtitle: Text(DateFormat('MMM d, yyyy').format(_selectedRenewalDate)),
                     trailing: const Icon(Icons.calendar_today),
                     onTap: () async {
@@ -400,6 +398,10 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                         setState(() => _selectedRenewalDate = date);
                       }
                     },
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey[300]!),
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 8),
@@ -412,12 +414,12 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _buildRequiredLabel('Billing Cycle'),
-                  const SizedBox(height: 4),
                   DropdownButtonFormField<BillingCycle>(
                     value: _selectedBillingCycle,
                     decoration: const InputDecoration(
+                      labelText: 'Billing Cycle *',
                       border: OutlineInputBorder(),
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
                     ),
                     items: BillingCycle.values.map((cycle) {
                       return DropdownMenuItem(

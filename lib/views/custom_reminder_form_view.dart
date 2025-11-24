@@ -173,12 +173,12 @@ class _CustomReminderFormViewState extends State<CustomReminderFormView> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _buildRequiredLabel('Title'),
-                  const SizedBox(height: 4),
                   TextFormField(
                     controller: _titleController,
                     decoration: const InputDecoration(
+                      labelText: 'Title *',
                       border: OutlineInputBorder(),
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -198,7 +198,7 @@ class _CustomReminderFormViewState extends State<CustomReminderFormView> {
                   ),
                   const SizedBox(height: 16),
                   ListTile(
-                    title: const Text('Date & Time'),
+                    title: const Text('Date & Time *'),
                     subtitle: _selectedDateTime != null
                         ? Text(
                             '${DateFormat('MMM d, yyyy').format(_selectedDateTime!)} at ${DateFormat('h:mm a').format(_selectedDateTime!)}')
@@ -206,7 +206,7 @@ class _CustomReminderFormViewState extends State<CustomReminderFormView> {
                     trailing: const Icon(Icons.calendar_today),
                     onTap: _selectDateTime,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(12),
                       side: BorderSide(color: Colors.grey[300]!),
                     ),
                   ),
