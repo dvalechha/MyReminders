@@ -188,12 +188,12 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _buildRequiredLabel('Title'),
-                  const SizedBox(height: 4),
                   TextFormField(
                     controller: _titleController,
                     decoration: const InputDecoration(
+                      labelText: 'Title *',
                       border: OutlineInputBorder(),
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -212,15 +212,13 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildRequiredLabel('Date & Time'),
-                  const SizedBox(height: 4),
                   ListTile(
-                    title: Text(DateFormat('MMM d, yyyy').format(_selectedDateTime)),
-                    subtitle: Text(DateFormat('h:mm a').format(_selectedDateTime)),
+                    title: const Text('Date & Time *'),
+                    subtitle: Text(DateFormat('MMM d, yyyy').format(_selectedDateTime)),
                     trailing: const Icon(Icons.calendar_today),
                     onTap: _selectDateTime,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(12),
                       side: BorderSide(color: Colors.grey[300]!),
                     ),
                   ),
