@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -58,16 +59,43 @@ class NotificationService {
       await initialize();
     }
 
-    final bool? authorized = await _notifications
-        .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>()
-        ?.requestPermissions(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
+    if (Platform.isIOS) {
+      // For iOS, request permissions
+      final bool? authorized = await _notifications
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>()
+          ?.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
 
-    _authorized = authorized ?? false;
+      _authorized = authorized ?? false;
+    } else if (Platform.isAndroid) {
+      // For Android 13+, request notification permission
+      final androidImplementation = _notifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      
+      if (androidImplementation != null) {
+        // Request permission for Android 13+ (API 33+)
+        final bool? requested = await androidImplementation.requestNotificationsPermission();
+        if (requested == true) {
+          _authorized = true;
+        } else {
+          // Check if notifications are already enabled
+          final bool? areNotificationsEnabled = 
+              await androidImplementation.areNotificationsEnabled();
+          _authorized = areNotificationsEnabled ?? true; // Default to true for older Android versions
+        }
+      } else {
+        _authorized = true; // Fallback: assume authorized
+      }
+    } else {
+      // For other platforms, assume authorized
+      _authorized = true;
+    }
+
     return _authorized;
   }
 

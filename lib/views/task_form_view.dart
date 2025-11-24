@@ -186,12 +186,12 @@ class _TaskFormViewState extends State<TaskFormView> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _buildRequiredLabel('Title'),
-                  const SizedBox(height: 4),
                   TextFormField(
                     controller: _titleController,
                     decoration: const InputDecoration(
+                      labelText: 'Title *',
                       border: OutlineInputBorder(),
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -210,19 +210,15 @@ class _TaskFormViewState extends State<TaskFormView> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildRequiredLabel('Due Date & Time'),
-                  const SizedBox(height: 4),
                   ListTile(
-                    title: _selectedDueDate != null
+                    title: const Text('Due Date & Time *'),
+                    subtitle: _selectedDueDate != null
                         ? Text(DateFormat('MMM d, yyyy').format(_selectedDueDate!))
                         : const Text('No date set'),
-                    subtitle: _selectedDueDate != null
-                        ? Text(DateFormat('h:mm a').format(_selectedDueDate!))
-                        : null,
                     trailing: const Icon(Icons.calendar_today),
                     onTap: _selectDueDate,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(12),
                       side: BorderSide(color: Colors.grey[300]!),
                     ),
                   ),
