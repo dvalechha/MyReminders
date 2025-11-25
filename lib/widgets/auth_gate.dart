@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/user_profile_provider.dart';
 import '../views/login_screen.dart';
 import '../views/welcome_view.dart';
 import '../views/email_verification_view.dart';
@@ -35,9 +36,24 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         if (mounted) {
           final authProvider = Provider.of<AuthProvider>(context, listen: false);
           authProvider.refreshSession();
+          // Also refresh profile
+          final profileProvider = Provider.of<UserProfileProvider>(context, listen: false);
+          profileProvider.loadProfile();
         }
       });
     }
+  }
+
+  void _loadProfileIfAuthenticated() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        if (authProvider.isAuthenticated) {
+          final profileProvider = Provider.of<UserProfileProvider>(context, listen: false);
+          profileProvider.loadProfile();
+        }
+      }
+    });
   }
 
   @override
@@ -65,6 +81,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         }
 
         // User is authenticated and verified
+        _loadProfileIfAuthenticated();
         return const WelcomeView();
       },
     );

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/subscription_provider.dart';
 import '../providers/appointment_provider.dart';
 import '../providers/task_provider.dart';
 import '../providers/custom_reminder_provider.dart';
-import '../providers/auth_provider.dart';
+import '../providers/user_profile_provider.dart';
+import '../services/logout_service.dart';
 import '../utils/snackbar.dart';
 import 'subscription_form_view.dart';
 import 'subscriptions_list_view.dart';
@@ -16,34 +16,51 @@ import 'tasks_list_view.dart';
 import 'custom_reminder_form_view.dart';
 import 'custom_reminders_list_view.dart';
 
-class WelcomeView extends StatelessWidget {
+class WelcomeView extends StatefulWidget {
   const WelcomeView({super.key});
 
   @override
+  State<WelcomeView> createState() => _WelcomeViewState();
+}
+
+class _WelcomeViewState extends State<WelcomeView> {
+  @override
+  void initState() {
+    super.initState();
+    // Load user profile when view is initialized
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final profileProvider = Provider.of<UserProfileProvider>(context, listen: false);
+      profileProvider.loadProfile();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final user = Supabase.instance.client.auth.currentUser;
-    
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Reminder'),
         actions: [
-          if (user?.email != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Center(
-                child: Text(
-                  user!.email!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
+          // Display name or email fallback
+          Consumer<UserProfileProvider>(
+            builder: (context, profileProvider, child) {
+              final displayText = profileProvider.getDisplayNameOrEmail();
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Center(
+                  child: Text(
+                    displayText,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
                   ),
                 ),
-              ),
-            ),
-          IconButton(
-            icon: const Icon(Icons.logout),
+              );
+            },
+          ),
+          // Logout button with fade animation on tap
+          _LogoutIconButton(
             onPressed: () => _handleSignOut(context),
-            tooltip: 'Sign out',
           ),
         ],
       ),
@@ -88,12 +105,9 @@ class WelcomeView extends StatelessWidget {
 
   Future<void> _handleSignOut(BuildContext context) async {
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      await authProvider.signOut();
-      // Navigation will be handled by AuthGate when auth state changes
-      if (context.mounted) {
-        SnackbarHelper.showSuccess(context, 'Signed out successfully');
-      }
+      // Call LogoutService directly as per prompt requirements
+      // This handles: clear local state, clear caches, Supabase signOut, splash screen, and routing
+      await LogoutService.instance.logout(context);
     } catch (e) {
       if (context.mounted) {
         SnackbarHelper.showError(context, 'Failed to sign out: $e');
@@ -269,6 +283,83 @@ class WelcomeView extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Logout icon button with fade animation on tap
+/// Ensures proper tap area (48x48 by default in IconButton) and accessibility
+class _LogoutIconButton extends StatefulWidget {
+  final VoidCallback onPressed;
+
+  const _LogoutIconButton({
+    required this.onPressed,
+  });
+
+  @override
+  State<_LogoutIconButton> createState() => _LogoutIconButtonState();
+}
+
+class _LogoutIconButtonState extends State<_LogoutIconButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.5,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    _animationController.forward();
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    _animationController.reverse();
+    widget.onPressed();
+  }
+
+  void _handleTapCancel() {
+    _animationController.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _handleTapDown,
+      onTapUp: _handleTapUp,
+      onTapCancel: _handleTapCancel,
+      child: AnimatedBuilder(
+        animation: _fadeAnimation,
+        builder: (context, child) {
+          return Opacity(
+            opacity: _fadeAnimation.value,
+            child: IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Logout',
+              onPressed: null, // Handled by GestureDetector
+              // IconButton provides 48x48 tap area by default (exceeds 44x44 requirement)
+            ),
+          );
+        },
       ),
     );
   }
