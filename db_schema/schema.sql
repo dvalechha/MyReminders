@@ -256,3 +256,48 @@ CREATE POLICY "Users can delete their own custom reminders"
     FOR DELETE
     TO authenticated
     USING (auth.uid() = user_id);
+
+-- ============================================
+-- 6. User Profile Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS user_profile (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Index on email for faster lookups
+CREATE INDEX IF NOT EXISTS idx_user_profile_email ON user_profile(email);
+
+-- Trigger to update updated_at timestamp
+CREATE TRIGGER update_user_profile_updated_at
+    BEFORE UPDATE ON user_profile
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Enable RLS on user_profile
+ALTER TABLE user_profile ENABLE ROW LEVEL SECURITY;
+
+-- User Profile: Users can only see their own profile
+CREATE POLICY "Users can view their own profile"
+    ON user_profile
+    FOR SELECT
+    TO authenticated
+    USING (auth.uid() = id);
+
+-- User Profile: Users can insert their own profile
+CREATE POLICY "Users can insert their own profile"
+    ON user_profile
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = id);
+
+-- User Profile: Users can update their own profile
+CREATE POLICY "Users can update their own profile"
+    ON user_profile
+    FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = id)
+    WITH CHECK (auth.uid() = id);

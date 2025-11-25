@@ -102,7 +102,7 @@ class _EmailVerificationViewState extends State<EmailVerificationView> {
                 TextButton(
                   onPressed: () {
                     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                    authProvider.signOut();
+                    authProvider.signOut(context);
                   },
                   child: const Text('Sign Out'),
                 ),

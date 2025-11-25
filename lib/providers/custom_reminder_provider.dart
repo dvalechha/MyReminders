@@ -144,5 +144,12 @@ class CustomReminderProvider with ChangeNotifier {
   Future<CustomReminder?> getCustomReminderById(String id) async {
     return await _dbHelper.getCustomReminderById(id);
   }
+
+  /// Clear all in-memory state (for logout)
+  void clearState() {
+    _customReminders = [];
+    _isLoading = false;
+    notifyListeners();
+  }
 }
 

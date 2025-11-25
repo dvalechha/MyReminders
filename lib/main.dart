@@ -7,6 +7,7 @@ import 'providers/subscription_provider.dart';
 import 'providers/appointment_provider.dart';
 import 'providers/task_provider.dart';
 import 'providers/custom_reminder_provider.dart';
+import 'providers/user_profile_provider.dart';
 import 'providers/navigation_model.dart';
 import 'utils/environment_config.dart';
 import 'widgets/auth_gate.dart';
@@ -60,6 +61,7 @@ class MyReminderApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => UserProfileProvider()),
         ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
         ChangeNotifierProvider(create: (_) => AppointmentProvider()),
         ChangeNotifierProvider(create: (_) => TaskProvider()),

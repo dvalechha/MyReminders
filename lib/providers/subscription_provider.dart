@@ -147,5 +147,12 @@ class SubscriptionProvider with ChangeNotifier {
   Future<Subscription?> getSubscriptionById(String id) async {
     return await _dbHelper.getSubscriptionById(id);
   }
+
+  /// Clear all in-memory state (for logout)
+  void clearState() {
+    _subscriptions = [];
+    _isLoading = false;
+    notifyListeners();
+  }
 }
 
