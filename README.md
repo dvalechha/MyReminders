@@ -50,6 +50,82 @@ lib/
 - **intl**: Date formatting
 - **uuid**: Unique ID generation
 - **timezone**: Timezone support for notifications
+- **supabase_flutter**: Backend-as-a-Service for authentication and data
+- **flutter_dotenv**: Environment variable management
+
+## Supabase Authentication Setup
+
+This app uses Supabase for user authentication with email/password and Google OAuth.
+
+### Supabase Dashboard Configuration
+
+1. **Enable Email/Password Auth**:
+   - Go to Authentication > Providers in your Supabase dashboard
+   - Enable "Email" provider
+   - Enable "Email confirmations" for secure sign-ups
+
+2. **Configure Google OAuth**:
+   - In Authentication > Providers, enable "Google"
+   - Create OAuth credentials in Google Cloud Console:
+     - Go to [Google Cloud Console](https://console.cloud.google.com/)
+     - Create/select a project
+     - Enable Google+ API
+     - Create OAuth 2.0 credentials (Client ID and Client Secret)
+   - Copy the Client ID and Client Secret to Supabase Google provider settings
+
+3. **Set Redirect URLs**:
+   - In Supabase Authentication > URL Configuration, add the following redirect URLs:
+     - For mobile apps: `myreminders://auth-callback`
+     - For development: `http://localhost:3000/auth/callback` (if using web)
+   - **Important**: When creating OAuth credentials in Google Cloud Console, add this authorized redirect URI:
+     - `https://sutjrivsvzikhibqwvqu.supabase.co/auth/v1/callback`
+
+### Android Configuration
+
+Add the redirect scheme to `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<application>
+  <!-- ... other configs ... -->
+  <activity
+    android:name=".MainActivity"
+    <!-- ... -->
+    >
+    <intent-filter android:autoVerify="true">
+      <action android:name="android.intent.action.VIEW" />
+      <category android:name="android.intent.category.DEFAULT" />
+      <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="myreminders" />
+    </intent-filter>
+  </activity>
+</application>
+```
+
+### iOS Configuration
+
+Add the redirect scheme to `ios/Runner/Info.plist`:
+
+```xml
+<dict>
+  <!-- ... other configs ... -->
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>myreminders</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+```
+
+### Authentication APIs Used
+
+- **Email/Password Sign In**: `Supabase.instance.client.auth.signInWithPassword(email: email, password: password)`
+- **Google OAuth Sign In**: `Supabase.instance.client.auth.signInWithOAuth(OAuthProvider.google, redirectTo: redirectUrl)`
 
 ## Setup Instructions
 

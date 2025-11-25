@@ -75,5 +75,39 @@ class CustomReminder {
       createdDate: createdDate ?? this.createdDate,
     );
   }
+
+  // Convert to Supabase format
+  Map<String, dynamic> toSupabaseMap({
+    required String userId,
+    String? categoryId,
+  }) {
+    return {
+      'id': id,
+      'user_id': userId,
+      'category_id': categoryId,
+      'title': title,
+      'event_time': dateTime?.toIso8601String(),
+      'notes': notes,
+      'reminder_offset_minutes': reminderOffset.minutes,
+    };
+  }
+
+  // Create from Supabase format
+  factory CustomReminder.fromSupabaseMap(Map<String, dynamic> map) {
+    return CustomReminder(
+      id: map['id'] as String,
+      title: map['title'] as String,
+      category: map['category_id'] as String?,
+      dateTime: map['event_time'] != null
+          ? DateTime.parse(map['event_time'] as String)
+          : null,
+      notes: map['notes'] as String?,
+      reminderOffset: ReminderOffset.values.firstWhere(
+        (e) => e.minutes == (map['reminder_offset_minutes'] as int? ?? 0),
+        orElse: () => ReminderOffset.none,
+      ),
+      createdDate: DateTime.parse(map['created_at'] as String),
+    );
+  }
 }
 

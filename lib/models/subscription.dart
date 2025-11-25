@@ -176,5 +176,49 @@ class Subscription {
       paymentMethod: paymentMethod ?? this.paymentMethod,
     );
   }
+
+  // Convert to Supabase format (for repository layer)
+  Map<String, dynamic> toSupabaseMap({
+    required String userId,
+    required String categoryId,
+  }) {
+    return {
+      'id': id,
+      'user_id': userId,
+      'category_id': categoryId,
+      'title': serviceName,
+      'amount': amount,
+      'currency': currency.value,
+      'renewal_date': renewalDate.toIso8601String().split('T')[0], // DATE format
+      'billing_cycle': billingCycle.value.toLowerCase(),
+      'reminder_days_before': reminderDaysBefore,
+      'payment_last4': paymentMethod?.length == 4 ? paymentMethod : null,
+      'notes': notes,
+    };
+  }
+
+  // Create from Supabase format
+  factory Subscription.fromSupabaseMap(
+    Map<String, dynamic> map,
+    SubscriptionCategory categoryEnum,
+  ) {
+    return Subscription(
+      id: map['id'] as String,
+      serviceName: map['title'] as String,
+      category: categoryEnum,
+      amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
+      currency: Currency.fromString(map['currency'] as String? ?? 'USD'),
+      renewalDate: DateTime.parse(map['renewal_date'] as String),
+      billingCycle: BillingCycle.fromString(map['billing_cycle'] as String),
+      reminder: ReminderTime.values.firstWhere(
+        (e) => e.value.contains('${map['reminder_days_before']} day'),
+        orElse: () => ReminderTime.none,
+      ),
+      reminderType: (map['reminder_days_before'] as int?) != null ? 'preset' : 'none',
+      reminderDaysBefore: map['reminder_days_before'] as int? ?? 0,
+      notes: map['notes'] as String?,
+      paymentMethod: map['payment_last4'] as String?,
+    );
+  }
 }
 

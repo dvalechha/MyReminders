@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/subscription_provider.dart';
 import '../providers/appointment_provider.dart';
 import '../providers/task_provider.dart';
 import '../providers/custom_reminder_provider.dart';
+import '../providers/auth_provider.dart';
+import '../utils/snackbar.dart';
 import 'subscription_form_view.dart';
 import 'subscriptions_list_view.dart';
 import 'appointment_form_view.dart';
@@ -18,7 +21,32 @@ class WelcomeView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = Supabase.instance.client.auth.currentUser;
+    
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Reminder'),
+        actions: [
+          if (user?.email != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Center(
+                child: Text(
+                  user!.email!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+            ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => _handleSignOut(context),
+            tooltip: 'Sign out',
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -56,6 +84,21 @@ class WelcomeView extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _handleSignOut(BuildContext context) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.signOut();
+      // Navigation will be handled by AuthGate when auth state changes
+      if (context.mounted) {
+        SnackbarHelper.showSuccess(context, 'Signed out successfully');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        SnackbarHelper.showError(context, 'Failed to sign out: $e');
+      }
+    }
   }
 
   Widget _buildCategoryList(BuildContext context) {
