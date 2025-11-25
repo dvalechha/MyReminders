@@ -1,43 +1,93 @@
-You are updating the Flutter UI to use a consistent 12px corner radius across ALL interactive components
-on BOTH iOS and Android.
+You are implementing the complete logout system for my Flutter + Supabase app.
 
-Apply the following changes across the entire project (or the relevant screen if scoped):
+GOAL:
+When the user taps “Logout”:
+1. Clear ALL local cached data
+2. Clear all in-memory providers/state
+3. Stop any listeners or streams
+4. Call Supabase signOut() to destroy the session
+5. Briefly show a custom Splash screen
+6. Navigate user to LoginScreen via AuthGate
 
-1. Update all InputDecorations, TextFields, DropdownButtons, GestureDetector containers,
-   Date pickers, Buttons, Outlined containers, Card-like surfaces, and any custom input widgets
-   to use:
-      borderRadius: BorderRadius.circular(12)
+===========================
+PART A — LOCAL CACHE CLEAR
+===========================
 
-2. Specifically update:
-   - OutlineInputBorder
-   - InputDecorationTheme
-   - DropdownButtonFormField / DropdownButton
-   - Container / DecoratedBox used as form fields
-   - ElevatedButtonTheme / OutlinedButtonTheme / TextButtonTheme
-   - CupertinoTextField / CupertinoButton (on iOS pathways)
-   - Any reusable custom widgets that define their own BoxDecoration
+Implement a LocalCacheService that clears:
 
-3. Ensure consistency across platforms:
-   - Material (Android) widgets → 12px radius
-   - Cupertino (iOS) widgets → explicitly override default styles to match 12px
-   - Remove or update any leftover 6px or 8px radius references.
+1. SharedPreferences (if used)
+   - remove all keys related to the logged-in user
+   - remove cached IDs, last viewed state, filters, etc.
 
-4. If the project uses theme-level overrides such as:
-      theme.inputDecorationTheme
-      theme.cardTheme
-      theme.dropdownMenuTheme
-   then update those once, and ensure local overrides do NOT conflict.
+2. Hive boxes or local DBs (if present)
+   - subscriptions cache
+   - appointments cache
+   - tasks cache
+   - custom reminders
+   - category cache
+   - any other local storage
+   CLEAR or DELETE these boxes.
 
-5. Perform a code-wide search for:
-   - BorderRadius.circular(8)
-   - BorderRadius.all(Radius.circular(8))
-   Replace with:
-      BorderRadius.circular(12)
+3. In-memory app state:
+   - Reset all Providers/BLoCs/Riverpod states to initial state
+   - Clear models, lists, selected IDs, etc.
+   - Export a function clearInMemoryState() to wipe all app-level state
 
-6. After updates, ensure visual consistency:
-   - Spacing, padding, and shadows should remain untouched.
-   - Do NOT alter colors, typography, layout structure, or padding.
+Make all clearing operations asynchronous and await them.
 
-7. Finally, regenerate the screen widgets to confirm the updated 12px radius is applied uniformly.
+===========================
+PART B — SERVER LOGOUT
+===========================
 
-Now, make all required changes.
+After local clearing is complete, call:
+
+await Supabase.instance.client.auth.signOut();
+
+NOTES:
+- Do NOT attempt “logout everywhere”
+- This must only clear the session on the current device
+
+===========================
+PART C — ORDER OF OPERATIONS
+===========================
+
+Your logout() function MUST follow this order:
+
+1. stopLiveListeners()
+2. await clearInMemoryState()
+3. await LocalCacheService.clearAll()
+4. await Supabase.instance.client.auth.signOut()
+5. Navigate to SplashScreen (for 1 second)
+6. Then let AuthGate redirect user to Login
+
+===========================
+PART D — HOOK INTO AUTHGATE
+===========================
+
+AuthGate should automatically redirect user when:
+Supabase.instance.client.auth.onAuthStateChange detects session == null
+
+Do NOT manually push LoginScreen directly in logout().
+The routing must pass through AuthGate.
+
+===========================
+PART E — PLACEHOLDER SERVICES
+===========================
+
+Create these helper files if missing:
+- lib/services/local_cache_service.dart
+- lib/services/state_reset_service.dart
+- lib/services/logout_service.dart
+
+Each service should expose clear() methods that can be awaited.
+
+===========================
+PART F — TEST CASES
+===========================
+
+Ensure Cursor adds test code for:
+
+1. After logout, no cached reminders exist
+2. AuthGate detects null session and redirects
+3. Google + email logins both work after logout
+4. No residual state from previous user persists

@@ -99,5 +99,43 @@ class Task {
       createdDate: createdDate ?? this.createdDate,
     );
   }
+
+  // Convert to Supabase format
+  Map<String, dynamic> toSupabaseMap({
+    required String userId,
+    String? categoryId,
+  }) {
+    return {
+      'id': id,
+      'user_id': userId,
+      'category_id': categoryId,
+      'title': title,
+      'due_date': dueDate?.toIso8601String(),
+      'priority': priority?.value.toLowerCase(),
+      'notes': notes,
+      'reminder_offset_minutes': reminderOffset.minutes,
+    };
+  }
+
+  // Create from Supabase format
+  factory Task.fromSupabaseMap(Map<String, dynamic> map) {
+    return Task(
+      id: map['id'] as String,
+      title: map['title'] as String,
+      category: map['category_id'] as String?,
+      dueDate: map['due_date'] != null
+          ? DateTime.parse(map['due_date'] as String)
+          : null,
+      priority: map['priority'] != null
+          ? TaskPriority.fromString(map['priority'] as String)
+          : null,
+      notes: map['notes'] as String?,
+      reminderOffset: ReminderOffset.values.firstWhere(
+        (e) => e.minutes == (map['reminder_offset_minutes'] as int? ?? 0),
+        orElse: () => ReminderOffset.none,
+      ),
+      createdDate: DateTime.parse(map['created_at'] as String),
+    );
+  }
 }
 
