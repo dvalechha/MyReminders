@@ -144,5 +144,12 @@ class TaskProvider with ChangeNotifier {
   Future<Task?> getTaskById(String id) async {
     return await _dbHelper.getTaskById(id);
   }
+
+  /// Clear all in-memory state (for logout)
+  void clearState() {
+    _tasks = [];
+    _isLoading = false;
+    notifyListeners();
+  }
 }
 
