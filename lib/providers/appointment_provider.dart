@@ -139,5 +139,12 @@ class AppointmentProvider with ChangeNotifier {
   Future<Appointment?> getAppointmentById(String id) async {
     return await _dbHelper.getAppointmentById(id);
   }
+
+  /// Clear all in-memory state (for logout)
+  void clearState() {
+    _appointments = [];
+    _isLoading = false;
+    notifyListeners();
+  }
 }
 

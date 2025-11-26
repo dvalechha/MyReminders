@@ -334,5 +334,10 @@ class NotificationService {
 
     print('Time-based reminder scheduled for $reminderTime (notificationId: $notificationId)');
   }
+
+  /// Cancel all pending notifications
+  Future<void> cancelAllNotifications() async {
+    await _notifications.cancelAll();
+  }
 }
 
