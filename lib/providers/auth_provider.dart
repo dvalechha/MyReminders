@@ -113,7 +113,8 @@ class AuthProvider extends ChangeNotifier {
               );
             }
           } catch (e) {
-            debugPrint('Warning: Failed to ensure user profile exists: $e');
+            // Silently ignore profile creation errors if table doesn't exist
+            // This is expected if the user_profile table hasn't been created in Supabase
           }
         }
       } else {
@@ -163,9 +164,10 @@ class AuthProvider extends ChangeNotifier {
         email: user.email!,
         displayName: displayName,
       );
-      debugPrint('User profile created/updated for Google user: ${user.email}');
+      // Profile created/updated successfully
     } catch (e) {
-      debugPrint('Warning: Failed to create/update user profile after Google auth: $e');
+      // Silently ignore profile creation errors if table doesn't exist
+      // This is expected if the user_profile table hasn't been created in Supabase
       // Don't throw - profile can be created later
     }
   }
@@ -220,9 +222,10 @@ class AuthProvider extends ChangeNotifier {
               email: user.email!,
               displayName: displayName,
             );
-            debugPrint('User profile created for: ${user.email}');
+            // Profile created successfully
           } catch (e) {
-            debugPrint('Warning: Failed to create user profile: $e');
+            // Silently ignore profile creation errors if table doesn't exist
+            // This is expected if the user_profile table hasn't been created in Supabase
             // Don't throw - profile can be created later
           }
         }

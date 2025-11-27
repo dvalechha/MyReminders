@@ -7,10 +7,16 @@ import '../providers/task_provider.dart';
 
 class TaskFormView extends StatefulWidget {
   final Task? task;
+  final String? initialTitle;
+  final DateTime? initialDueDate;
+  final String? initialNotes;
 
   const TaskFormView({
     super.key,
     this.task,
+    this.initialTitle,
+    this.initialDueDate,
+    this.initialNotes,
   });
 
   @override
@@ -32,6 +38,19 @@ class _TaskFormViewState extends State<TaskFormView> {
     super.initState();
     if (widget.task != null) {
       _loadTaskData();
+    } else if (widget.initialTitle != null ||
+               widget.initialDueDate != null ||
+               widget.initialNotes != null) {
+      // Pre-populate with initial values (for new tasks from parser)
+      if (widget.initialTitle != null) {
+        _titleController.text = widget.initialTitle!;
+      }
+      if (widget.initialDueDate != null) {
+        _selectedDueDate = widget.initialDueDate;
+      }
+      if (widget.initialNotes != null) {
+        _notesController.text = widget.initialNotes!;
+      }
     }
   }
 
