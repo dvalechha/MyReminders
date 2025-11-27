@@ -24,6 +24,7 @@ class UserProfileProvider extends ChangeNotifier {
   }
 
   /// Load user profile for current authenticated user
+  /// Note: This will fail silently if the user_profile table doesn't exist
   Future<void> loadProfile() async {
     try {
       _isLoading = true;
@@ -41,7 +42,9 @@ class UserProfileProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     } catch (e) {
-      debugPrint('Error loading user profile: $e');
+      // Silently fail if user_profile table doesn't exist
+      // This is expected if the table hasn't been created in Supabase
+      _profile = null;
       _isLoading = false;
       notifyListeners();
     }

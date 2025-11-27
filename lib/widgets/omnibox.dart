@@ -5,13 +5,17 @@ import '../models/intent_type.dart';
 class Omnibox extends StatefulWidget {
   final void Function(String query) onSearch;
   final void Function(String query) onCreate;
+  final void Function()? onClear;
   final List<String> existingItems;
+  final TextEditingController? controller;
 
   const Omnibox({
     super.key,
     required this.onSearch,
     required this.onCreate,
+    this.onClear,
     this.existingItems = const [],
+    this.controller,
   });
 
   @override
@@ -19,7 +23,7 @@ class Omnibox extends StatefulWidget {
 }
 
 class _OmniboxState extends State<Omnibox> {
-  final TextEditingController _controller = TextEditingController();
+  late final TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
   IntentType _currentIntent = IntentType.search;
   bool _isFocused = false;
@@ -39,6 +43,8 @@ class _OmniboxState extends State<Omnibox> {
   @override
   void initState() {
     super.initState();
+    // Use provided controller or create a new one
+    _controller = widget.controller ?? TextEditingController();
     _focusNode.addListener(_onFocusChange);
     _controller.addListener(_onTextChange);
     
@@ -110,6 +116,8 @@ class _OmniboxState extends State<Omnibox> {
   void _handleClear() {
     _controller.clear();
     _focusNode.unfocus();
+    // Notify parent that text was cleared
+    widget.onClear?.call();
   }
 
   void _handleTab() {
@@ -203,9 +211,11 @@ class _OmniboxState extends State<Omnibox> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    // Only dispose controller if we created it (not provided from parent)
+    if (widget.controller == null) {
+      _controller.dispose();
+    }
     _focusNode.dispose();
     super.dispose();
   }
 }
-
