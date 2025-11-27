@@ -1,0 +1,6 @@
+enum IntentType {
+  search,
+  create,
+}
+
+
