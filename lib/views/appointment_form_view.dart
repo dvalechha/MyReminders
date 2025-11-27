@@ -6,10 +6,18 @@ import '../providers/appointment_provider.dart';
 
 class AppointmentFormView extends StatefulWidget {
   final Appointment? appointment;
+  final String? initialTitle;
+  final DateTime? initialDateTime;
+  final String? initialLocation;
+  final String? initialNotes;
 
   const AppointmentFormView({
     super.key,
     this.appointment,
+    this.initialTitle,
+    this.initialDateTime,
+    this.initialLocation,
+    this.initialNotes,
   });
 
   @override
@@ -19,7 +27,6 @@ class AppointmentFormView extends StatefulWidget {
 class _AppointmentFormViewState extends State<AppointmentFormView> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
-  final _categoryController = TextEditingController();
   final _locationController = TextEditingController();
   final _notesController = TextEditingController();
 
@@ -31,13 +38,29 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
     super.initState();
     if (widget.appointment != null) {
       _loadAppointmentData();
+    } else if (widget.initialTitle != null || 
+               widget.initialDateTime != null || 
+               widget.initialLocation != null ||
+               widget.initialNotes != null) {
+      // Pre-populate with initial values (for new appointments from parser)
+      if (widget.initialTitle != null) {
+        _titleController.text = widget.initialTitle!;
+      }
+      if (widget.initialDateTime != null) {
+        _selectedDateTime = widget.initialDateTime!;
+      }
+      if (widget.initialLocation != null) {
+        _locationController.text = widget.initialLocation!;
+      }
+      if (widget.initialNotes != null) {
+        _notesController.text = widget.initialNotes!;
+      }
     }
   }
 
   void _loadAppointmentData() {
     final apt = widget.appointment!;
     _titleController.text = apt.title;
-    _categoryController.text = apt.category ?? '';
     _locationController.text = apt.location ?? '';
     _notesController.text = apt.notes ?? '';
     _selectedDateTime = apt.dateTime;
@@ -47,7 +70,6 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
   @override
   void dispose() {
     _titleController.dispose();
-    _categoryController.dispose();
     _locationController.dispose();
     _notesController.dispose();
     super.dispose();
@@ -127,9 +149,7 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
     final appointment = Appointment(
       id: widget.appointment?.id,
       title: _titleController.text.trim(),
-      category: _categoryController.text.trim().isEmpty
-          ? null
-          : _categoryController.text.trim(),
+      category: null, // Category removed - generic appointments only
       dateTime: _selectedDateTime,
       location: _locationController.text.trim().isEmpty
           ? null
@@ -201,15 +221,6 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
                       }
                       return null;
                     },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _categoryController,
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      border: OutlineInputBorder(),
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                    ),
                   ),
                   const SizedBox(height: 16),
                   ListTile(

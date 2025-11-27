@@ -9,10 +9,16 @@ import 'custom_reminder_modal.dart';
 
 class SubscriptionFormView extends StatefulWidget {
   final Subscription? subscription;
+  final String? initialServiceName;
+  final DateTime? initialRenewalDate;
+  final String? initialNotes;
 
   const SubscriptionFormView({
     super.key,
     this.subscription,
+    this.initialServiceName,
+    this.initialRenewalDate,
+    this.initialNotes,
   });
 
   @override
@@ -60,6 +66,19 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
     _checkNotificationPermission();
     if (widget.subscription != null) {
       _loadSubscriptionData();
+    } else if (widget.initialServiceName != null ||
+               widget.initialRenewalDate != null ||
+               widget.initialNotes != null) {
+      // Pre-populate with initial values (for new subscriptions from parser)
+      if (widget.initialServiceName != null) {
+        _serviceNameController.text = widget.initialServiceName!;
+      }
+      if (widget.initialRenewalDate != null) {
+        _selectedRenewalDate = widget.initialRenewalDate!;
+      }
+      if (widget.initialNotes != null) {
+        _notesController.text = widget.initialNotes!;
+      }
     }
   }
 

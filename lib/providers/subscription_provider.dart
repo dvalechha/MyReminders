@@ -1,11 +1,16 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/subscription.dart';
 import '../database/database_helper.dart';
 import '../services/notification_service.dart';
+import '../repositories/subscription_repository.dart';
+import '../repositories/category_repository.dart';
 
 class SubscriptionProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final NotificationService _notificationService = NotificationService.instance;
+  final SubscriptionRepository _supabaseRepository = SubscriptionRepository();
+  final CategoryRepository _categoryRepository = CategoryRepository();
 
   List<Subscription> _subscriptions = [];
   bool _isLoading = false;
@@ -59,7 +64,55 @@ class SubscriptionProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
+      // Save to local SQLite first (for offline support)
       await _dbHelper.insertSubscription(updatedSubscription);
+
+      // Also save to Supabase if user is authenticated
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          // Get category in Supabase by name
+          final categoryName = updatedSubscription.category.value;
+          var category = await _categoryRepository.getByName(categoryName);
+          
+          // If category doesn't exist, try to get "Other" as fallback
+          String? categoryId = category?.id;
+          if (categoryId == null) {
+            // Try to get a default category (e.g., "Other")
+            final defaultCategory = await _categoryRepository.getByName('Other');
+            categoryId = defaultCategory?.id;
+          }
+          
+          if (categoryId == null) {
+            // Try to get any category as last resort
+            final allCategories = await _categoryRepository.getAll();
+            if (allCategories.isNotEmpty) {
+              categoryId = allCategories.first.id;
+              debugPrint('Warning: Category "$categoryName" not found. Using "${allCategories.first.name}" instead.');
+            } else {
+              // If no categories exist at all, we can't proceed
+              debugPrint('Error: No categories found in Supabase. Please create categories first.');
+              debugPrint('Subscription saved locally only.');
+              // Continue with local save only
+              await loadSubscriptions();
+              return updatedSubscription.id;
+            }
+          }
+
+          // Convert to Supabase format and save (categoryId is guaranteed to be non-null here)
+          final supabaseData = updatedSubscription.toSupabaseMap(
+            userId: user.id,
+            categoryId: categoryId,
+          );
+          
+          await _supabaseRepository.create(supabaseData);
+          debugPrint('Subscription saved to Supabase: ${updatedSubscription.serviceName}');
+        }
+      } catch (e) {
+        // Log error but don't fail - subscription is already saved locally
+        debugPrint('Warning: Failed to save subscription to Supabase: $e');
+        debugPrint('Subscription saved locally only. Will sync when connection is available.');
+      }
 
       // Schedule notification if reminder is set
       if (updatedSubscription.reminderType != 'none' &&
@@ -76,7 +129,7 @@ class SubscriptionProvider with ChangeNotifier {
       await loadSubscriptions();
       return updatedSubscription.id;
     } catch (e) {
-      print('Error adding subscription: $e');
+      debugPrint('Error adding subscription: $e');
       rethrow;
     }
   }
