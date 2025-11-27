@@ -71,7 +71,7 @@ class MyReminderApp extends StatelessWidget {
       child: Consumer<NavigationModel>(
         builder: (context, navigationModel, child) {
           return MaterialApp(
-            title: 'My Reminder',
+            title: 'Custos',
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
               colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
