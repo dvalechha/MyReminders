@@ -36,9 +36,11 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         if (mounted) {
           final authProvider = Provider.of<AuthProvider>(context, listen: false);
           authProvider.refreshSession();
-          // Also refresh profile
+          // Also refresh profile (fails silently if table doesn't exist)
           final profileProvider = Provider.of<UserProfileProvider>(context, listen: false);
-          profileProvider.loadProfile();
+          profileProvider.loadProfile().catchError((_) {
+            // Silently ignore profile loading errors
+          });
         }
       });
     }
@@ -50,7 +52,9 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         if (authProvider.isAuthenticated) {
           final profileProvider = Provider.of<UserProfileProvider>(context, listen: false);
-          profileProvider.loadProfile();
+          profileProvider.loadProfile().catchError((_) {
+            // Silently ignore profile loading errors
+          });
         }
       }
     });
