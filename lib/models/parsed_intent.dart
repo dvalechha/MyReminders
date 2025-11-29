@@ -27,6 +27,10 @@ class ParsedIntent {
 
   /// Returns true if the intent has all required information
   bool get isComplete => action != null && category != null && dateTime != null;
+
+  /// Returns true if both action and category are not null
+  /// This is the primary flag for determining if the parsing was successful
+  bool get isSuccess => action != null && category != null;
 }
 
 
