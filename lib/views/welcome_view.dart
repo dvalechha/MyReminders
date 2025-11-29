@@ -6,7 +6,12 @@ import '../providers/task_provider.dart';
 import '../providers/custom_reminder_provider.dart';
 import '../widgets/omnibox.dart';
 import '../widgets/pulsing_gradient_placeholder.dart';
+import '../widgets/default_welcome_view.dart';
+import '../widgets/success_intent_view.dart';
+import '../widgets/help_suggestion_view.dart';
 import '../utils/natural_language_parser.dart';
+import '../services/intent_parser_service.dart';
+import '../models/parsed_intent.dart';
 import 'subscription_form_view.dart';
 import 'appointment_form_view.dart';
 import 'task_form_view.dart';
@@ -21,6 +26,28 @@ class WelcomeView extends StatefulWidget {
 class _WelcomeViewState extends State<WelcomeView> {
   String? _currentInput;
   final TextEditingController _omniboxController = TextEditingController();
+  final IntentParserService _intentParser = IntentParserService();
+  ParsedIntent? _parsedIntent;
+  bool _hasSubmitted = false; // Track if user has pressed Enter
+  final GlobalKey<OmniboxState> _omniboxKey = GlobalKey<OmniboxState>();
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen to text changes in real-time for Success view updates
+    _omniboxController.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    final query = _omniboxController.text;
+    // Reset submitted flag when user starts typing again
+    if (_hasSubmitted && query != _currentInput) {
+      setState(() {
+        _hasSubmitted = false;
+      });
+    }
+    _handleInputChange(query);
+  }
 
   // TODO: In future iterations, populate this with actual items from providers
   List<String> _getExistingItems() {
@@ -58,20 +85,75 @@ class _WelcomeViewState extends State<WelcomeView> {
   void _handleSearch(String query) {
     setState(() {
       _currentInput = query;
+      _hasSubmitted = true; // User pressed Enter
+      // Parse the input to determine UI state
+      if (query.trim().isEmpty) {
+        _parsedIntent = null;
+      } else {
+        _parsedIntent = _intentParser.parse(query);
+      }
     });
+    
+    // If the parsed intent is successful, treat it as a create action and navigate
+    // This handles the case where user selects a suggestion and hits enter
+    if (_parsedIntent != null && _parsedIntent!.isSuccess) {
+      _handleCreate(query);
+      return;
+    }
     
     // TODO: In next iteration, implement search results view
     // This will show matching items from subscriptions, appointments, tasks, and custom reminders
     debugPrint('Search triggered: $query');
   }
 
-  void _handleCreate(String query) {
+  void _handleInputChange(String query) {
     setState(() {
       _currentInput = query;
+      // Parse the input to determine UI state
+      if (query.trim().isEmpty) {
+        _parsedIntent = null;
+      } else {
+        _parsedIntent = _intentParser.parse(query);
+      }
+    });
+  }
+
+  void _handleExampleTap(String example) {
+    // Populate the TextField with the example text
+    _omniboxController.text = example;
+    _omniboxController.selection = TextSelection.fromPosition(
+      TextPosition(offset: example.length),
+    );
+    // Reset submitted flag and update state immediately when user selects an example
+    setState(() {
+      _currentInput = example;
+      _hasSubmitted = false;
+      // Parse the example immediately
+      _parsedIntent = _intentParser.parse(example);
+    });
+    // Request focus on the TextField to show keyboard and cursor
+    // Use a longer delay to ensure the tap event completes and UI updates
+    Future.delayed(const Duration(milliseconds: 100), () {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _omniboxKey.currentState?.requestTextFieldFocus();
+      });
+    });
+  }
+
+  void _handleCreate(String query) {
+    // Ensure we're using the latest query from the controller
+    final actualQuery = _omniboxController.text.trim();
+    final queryToUse = actualQuery.isNotEmpty ? actualQuery : query;
+    
+    setState(() {
+      _currentInput = queryToUse;
+      _hasSubmitted = true; // User pressed Enter
+      // Parse the input to determine UI state
+      _parsedIntent = _intentParser.parse(queryToUse);
     });
     
-    // Parse the natural language input
-    final parsed = NaturalLanguageParser.parse(query);
+    // Parse the natural language input using NaturalLanguageParser for navigation
+    final parsed = NaturalLanguageParser.parse(queryToUse);
     
     if (parsed.type == ParsedReminderType.subscription) {
       // Navigate to subscription form with pre-populated data (using initial values, not edit mode)
@@ -81,7 +163,7 @@ class _WelcomeViewState extends State<WelcomeView> {
           builder: (context) => SubscriptionFormView(
             initialServiceName: parsed.title ?? 'New Subscription',
             initialRenewalDate: parsed.date ?? DateTime.now().add(const Duration(days: 30)),
-            initialNotes: query, // Store the original query as notes for reference
+            initialNotes: queryToUse, // Store the original query as notes for reference
           ),
         ),
       ).then((_) {
@@ -89,6 +171,8 @@ class _WelcomeViewState extends State<WelcomeView> {
         if (mounted) {
           setState(() {
             _currentInput = null;
+            _parsedIntent = null;
+            _hasSubmitted = false;
           });
           // Clear the omnibox text
           _omniboxController.clear();
@@ -128,7 +212,7 @@ class _WelcomeViewState extends State<WelcomeView> {
             initialTitle: parsed.title ?? 'New Appointment',
             initialDateTime: dateTime,
             initialLocation: parsed.location,
-            initialNotes: query, // Store the original query as notes for reference
+            initialNotes: queryToUse, // Store the original query as notes for reference
           ),
         ),
       ).then((_) {
@@ -136,6 +220,8 @@ class _WelcomeViewState extends State<WelcomeView> {
         if (mounted) {
           setState(() {
             _currentInput = null;
+            _parsedIntent = null;
+            _hasSubmitted = false;
           });
           // Clear the omnibox text
           _omniboxController.clear();
@@ -171,7 +257,7 @@ class _WelcomeViewState extends State<WelcomeView> {
           builder: (context) => TaskFormView(
             initialTitle: parsed.title ?? 'New Task',
             initialDueDate: dueDate,
-            initialNotes: query, // Store the original query as notes for reference
+            initialNotes: queryToUse, // Store the original query as notes for reference
           ),
         ),
       ).then((_) {
@@ -179,24 +265,48 @@ class _WelcomeViewState extends State<WelcomeView> {
         if (mounted) {
           setState(() {
             _currentInput = null;
+            _parsedIntent = null;
+            _hasSubmitted = false;
           });
           // Clear the omnibox text
           _omniboxController.clear();
         }
       });
     } else {
-      // Unknown type - show a message or default behavior
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not determine reminder type. Please specify "subscription", "appointment", or "task".'),
-          duration: const Duration(seconds: 2),
-        ),
+      // Unknown type - Help view will already be displayed if parsing failed
+      // No need to show a SnackBar, the Help view provides better guidance
+      debugPrint('Could not determine reminder type from: $queryToUse');
+    }
+  }
+
+  Widget _buildContentArea() {
+    // Default view: when input is empty
+    if (_currentInput == null || _currentInput!.trim().isEmpty) {
+      return const DefaultWelcomeView();
+    }
+
+    // Parse the current input if not already parsed
+    _parsedIntent ??= _intentParser.parse(_currentInput!);
+
+    // Success view: when parsing was successful (show while typing or after submit)
+    if (_parsedIntent!.isSuccess) {
+      return SuccessIntentView(parsedIntent: _parsedIntent!);
+    }
+
+    // Help/Suggestion view: only show when user has submitted (pressed Enter) AND parsing failed
+    if (_hasSubmitted) {
+      return HelpSuggestionView(
+        onExampleTap: _handleExampleTap,
       );
     }
+
+    // While typing and not successful yet, show default view (don't show errors prematurely)
+    return const DefaultWelcomeView();
   }
 
   @override
   void dispose() {
+    _omniboxController.removeListener(_onTextChanged);
     _omniboxController.dispose();
     super.dispose();
   }
@@ -204,6 +314,7 @@ class _WelcomeViewState extends State<WelcomeView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
@@ -213,6 +324,7 @@ class _WelcomeViewState extends State<WelcomeView> {
               const SizedBox(height: 20),
               // Omnibox at the top
               Omnibox(
+                key: _omniboxKey,
                 controller: _omniboxController,
                 onSearch: _handleSearch,
                 onCreate: _handleCreate,
@@ -220,26 +332,25 @@ class _WelcomeViewState extends State<WelcomeView> {
                   // Clear input when omnibox is cleared
                   setState(() {
                     _currentInput = null;
+                    _parsedIntent = null;
+                    _hasSubmitted = false; // Reset submitted flag
                   });
                 },
                 existingItems: _getExistingItems(),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 12),
               // Placeholder visualization that reacts to input
-              PulsingGradientPlaceholder(
-                inputText: _currentInput,
-              ),
-              const SizedBox(height: 24),
-              // TODO: Dynamic content area
-              // This area will be populated based on user input in future updates:
-              // - Search results when search intent is detected
-              // - Create form when create intent is detected
-              // - Suggestions when input is empty
-              Expanded(
-                child: Container(
-                  // Placeholder for future dynamic content
-                  // Will be replaced with actual search results or create forms
+              Flexible(
+                flex: 1,
+                child: PulsingGradientPlaceholder(
+                  inputText: _currentInput,
                 ),
+              ),
+              const SizedBox(height: 12),
+              // Dynamic content area based on parsing state
+              Flexible(
+                flex: 2,
+                child: _buildContentArea(),
               ),
             ],
           ),

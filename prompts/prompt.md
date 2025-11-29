@@ -1,28 +1,36 @@
-You are an expert Flutter/Dart developer. Your task is to implement a natural language processing (NLP) service to infer user intent from a single sentence.
+You are an expert Flutter/Dart developer. Your task is to expand the app's natural language capabilities to support viewing existing data and to enhance the initial user experience with actionable examples.
 
-The service needs to extract three key pieces of information:
-1.  **Action:** The user's primary goal (e.g., to create something).
-2.  **Category:** The type of item the user is referring to (e.g., an appointment).
-3.  **Date & Time:** The specific date and time for the item.
+**Starting Point:**
+You have an `IntentParserService` that can identify a "create" action and various categories (Appointment, Task, etc.). The main screen can parse input and show a confirmation or a help view. List screens (`AppointmentsListScreen`, `SubscriptionsListScreen`, `TasksListScreen`) already exist but are not yet connected to the main screen's NLP input.
 
 **Instructions:**
 
-1.  **Create a data class** named `ParsedIntent` to hold the extracted information. It should have the following properties:
-    *   `String? action`
-    *   `String? category`
-    *   `DateTime? dateTime`
-    *   `String originalText`
+1.  **Enhance the `IntentParserService`:**
+    *   Introduce a new "show" action. The parser must now be able to differentiate between creating a new item and viewing existing ones.
+    *   Update your keyword matching logic to recognize phrases for this new action. For example:
+        *   **Action 'show':** `['show me', 'show', 'view', 'do i have', 'what are my', 'list my']`
+    *   The service should now be able to parse "Show me my subscriptions" and correctly identify the action as "show" and the category as "subscription".
 
-2.  **Create a service class** named `IntentParserService`. This class will contain the core parsing logic.
+2.  **Implement Routing Logic on the Main Screen:**
+    *   After the user submits text from the `TextField`, the app should analyze the `ParsedIntent` result.
+    *   Create a central handler method that takes the `ParsedIntent` and decides what to do next.
+    *   Use a `switch` statement or `if/else` logic based on the parsed action and category:
+        *   If the action is **"create"**: Keep the current behavior (e.g., show a confirmation card or navigate to a screen to add the new item).
+        *   If the action is **"show"**: Use the `Navigator` to push the corresponding list screen.
+            *   If category is "appointment", navigate to `AppointmentsListScreen()`.
+            *   If category is "subscription", navigate to `SubscriptionsListScreen()`.
+            *   If category is "task", navigate to `TasksListScreen()`.
+        *   If the intent is not successful (`isSuccess` is false), show the contextual help/suggestion view as before.
 
-3.  **Implement the parsing method** within `IntentParserService`:
-    *   Create a public method: `ParsedIntent parse(String text)`.
-    *   **For Date & Time Extraction:** Find a suitable package on `pub.dev` that can parse natural language dates and times from a string (e.g., "Dec 15th at 6pm", "in a month's time on 15th at 6pm"). The `any_date` package is a good candidate. Integrate it to find and parse the date/time from the input text.
-    *   **For Action & Category Extraction:** Implement a simple keyword-matching system.
-        *   Define lists of keywords. For example:
-            *   **Action 'create':** `['create', 'setup', 'add', 'make', 'need', 'set up']`
-            *   **Category 'appointment':** `['appointment', 'appt', 'meeting']`
-            *   **Category 'reminder':** `['reminder', 'remind me']`
-        *   The method should iterate through the input text (ideally after removing the date/time phrase to avoid confusion) and identify which keywords are present to determine the `action` and `category`.
+3.  **Update the Default Welcome View:**
+    *   The default view, which is shown when the app starts and the input field is empty, should be updated to proactively guide the user.
+    *   Instead of just an icon, this view should now display a short list of clickable example commands.
+    *   These examples should showcase the full range of capabilities, including both "create" and "show" actions.
+    *   Just like in the help/suggestion view, when a user taps an example, it must populate the main `TextField` and bring it into focus, preparing it for submission.
 
-Please write clean, well-documented, and production-ready Dart code, ensuring to handle cases where parts of the intent (like the date or action) cannot be found.
+**Example Commands for the Welcome View:**
+*   "Show me my subscriptions"
+*   "Do I have any appointments today?"
+*   "Create an appointment for tomorrow at 5pm with Dr. Smith"
+
+Please write clean, well-documented, and production-ready Dart code that seamlessly integrates the existing list screens with the natural language input.
