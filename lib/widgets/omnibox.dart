@@ -19,14 +19,39 @@ class Omnibox extends StatefulWidget {
   });
 
   @override
-  State<Omnibox> createState() => _OmniboxState();
+  State<Omnibox> createState() => OmniboxState();
 }
 
-class _OmniboxState extends State<Omnibox> {
+class OmniboxState extends State<Omnibox> {
   late final TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
   IntentType _currentIntent = IntentType.search;
   bool _isFocused = false;
+
+  /// Request focus on the TextField and show keyboard
+  void requestTextFieldFocus() {
+    // Use a post-frame callback to ensure the widget tree is ready
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _focusNode.canRequestFocus) {
+        // Request focus
+        _focusNode.requestFocus();
+        
+        // On mobile platforms, explicitly show the keyboard after a delay
+        // This ensures the keyboard appears even if focus was just set
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted && _focusNode.hasFocus) {
+            // Explicitly request the keyboard to show on mobile
+            try {
+              SystemChannels.textInput.invokeMethod('TextInput.show');
+            } catch (e) {
+              // Ignore errors - keyboard might already be showing
+              debugPrint('Could not show keyboard: $e');
+            }
+          }
+        });
+      }
+    });
+  }
 
   // Action verbs that indicate create intent
   static const List<String> _createVerbs = [
@@ -175,6 +200,8 @@ class _OmniboxState extends State<Omnibox> {
         child: TextField(
           controller: _controller,
           focusNode: _focusNode,
+          enableInteractiveSelection: true,
+          keyboardType: TextInputType.text,
           decoration: InputDecoration(
             hintText: 'Ask, schedule, or search…',
             prefixIcon: AnimatedSwitcher(
@@ -203,7 +230,7 @@ class _OmniboxState extends State<Omnibox> {
             ),
           ),
           onSubmitted: (_) => _handleSubmit(),
-          textInputAction: TextInputAction.search,
+          textInputAction: TextInputAction.go,
         ),
       ),
     );
