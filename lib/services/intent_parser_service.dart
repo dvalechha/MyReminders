@@ -48,6 +48,16 @@ class IntentParserService {
     'payment',
   ];
 
+  // Keywords for category 'task'
+  static const List<String> _taskCategoryKeywords = [
+    'task',
+    'tasks',
+    'todo',
+    'todos',
+    'to-do',
+    'to do',
+  ];
+
   /// Parse natural language text to extract intent information
   /// 
   /// Returns a [ParsedIntent] object containing:
@@ -109,6 +119,13 @@ class IntentParserService {
     for (final keyword in _subscriptionCategoryKeywords) {
       if (text.contains(keyword)) {
         return 'subscription';
+      }
+    }
+
+    // Check for task keywords
+    for (final keyword in _taskCategoryKeywords) {
+      if (text.contains(keyword)) {
+        return 'task';
       }
     }
 
