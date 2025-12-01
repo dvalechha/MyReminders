@@ -98,6 +98,7 @@ class _WelcomeViewState extends State<WelcomeView> {
     });
     
     // If the parsed intent is successful, handle based on action type
+    // This handles cases where Omnibox detected it as search but it's actually a valid command
     if (_parsedIntent != null && _parsedIntent!.isSuccess) {
       _handleIntent(_parsedIntent!);
       return;
@@ -117,11 +118,123 @@ class _WelcomeViewState extends State<WelcomeView> {
       // Navigate to the appropriate list screen
       _navigateToListScreen(category);
     } else if (action == 'create') {
-      // Use the existing create handler
-      _handleCreate(intent.originalText);
+      // Navigate directly to the create form based on category
+      _navigateToCreateScreen(intent.originalText, category);
     } else {
       // Unknown action - show help
       debugPrint('Unknown action: $action');
+    }
+  }
+
+  /// Navigate to the appropriate create form based on category
+  void _navigateToCreateScreen(String query, String? category) {
+    // Parse the natural language input using NaturalLanguageParser for form data
+    final parsed = NaturalLanguageParser.parse(query);
+    
+    // Determine which form to show based on category or parsed type
+    ParsedReminderType typeToUse;
+    if (category == 'appointment') {
+      typeToUse = ParsedReminderType.appointment;
+    } else if (category == 'task') {
+      typeToUse = ParsedReminderType.task;
+    } else if (category == 'subscription') {
+      typeToUse = ParsedReminderType.subscription;
+    } else {
+      // Fallback to parsed type
+      typeToUse = parsed.type;
+    }
+    
+    // Navigate based on the determined type
+    if (typeToUse == ParsedReminderType.subscription) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SubscriptionFormView(
+            initialServiceName: parsed.title ?? 'New Subscription',
+            initialRenewalDate: parsed.date ?? DateTime.now().add(const Duration(days: 30)),
+            initialNotes: query,
+          ),
+        ),
+      ).then((_) => _clearInputAfterNavigation());
+    } else if (typeToUse == ParsedReminderType.appointment) {
+      DateTime? dateTime = parsed.date;
+      if (dateTime != null && parsed.time != null) {
+        dateTime = DateTime(
+          dateTime.year,
+          dateTime.month,
+          dateTime.day,
+          parsed.time!.hour,
+          parsed.time!.minute,
+        );
+      } else if (parsed.time != null) {
+        final now = DateTime.now();
+        dateTime = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          parsed.time!.hour,
+          parsed.time!.minute,
+        );
+      } else {
+        dateTime ??= DateTime.now().add(const Duration(days: 1));
+      }
+      
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AppointmentFormView(
+            initialTitle: parsed.title ?? 'New Appointment',
+            initialDateTime: dateTime,
+            initialLocation: parsed.location,
+            initialNotes: query,
+          ),
+        ),
+      ).then((_) => _clearInputAfterNavigation());
+    } else if (typeToUse == ParsedReminderType.task) {
+      DateTime? dueDate = parsed.date;
+      if (dueDate != null && parsed.time != null) {
+        dueDate = DateTime(
+          dueDate.year,
+          dueDate.month,
+          dueDate.day,
+          parsed.time!.hour,
+          parsed.time!.minute,
+        );
+      } else if (parsed.time != null) {
+        final now = DateTime.now();
+        dueDate = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          parsed.time!.hour,
+          parsed.time!.minute,
+        );
+      }
+      
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TaskFormView(
+            initialTitle: parsed.title ?? 'New Task',
+            initialDueDate: dueDate,
+            initialNotes: query,
+          ),
+        ),
+      ).then((_) => _clearInputAfterNavigation());
+    } else {
+      debugPrint('Could not determine form type from: $query');
+    }
+  }
+
+  /// Clear input after returning from navigation
+  void _clearInputAfterNavigation() {
+    if (mounted) {
+      setState(() {
+        _currentInput = null;
+        _parsedIntent = null;
+        _hasSubmitted = false;
+      });
+      _omniboxController.clear();
     }
   }
 
@@ -183,32 +296,22 @@ class _WelcomeViewState extends State<WelcomeView> {
       TextPosition(offset: example.length),
     );
     
-    // Parse the example and execute the action directly
+    // Parse the example to update the UI state
     final parsedIntent = _intentParser.parse(example);
     
-    // If parsing was successful, execute the action immediately
-    if (parsedIntent.isSuccess) {
-      setState(() {
-        _currentInput = example;
-        _hasSubmitted = true;
-        _parsedIntent = parsedIntent;
+    // Update state - don't navigate immediately, let user edit and hit GO
+    setState(() {
+      _currentInput = example;
+      _hasSubmitted = false; // Reset so they can see the success view or edit
+      _parsedIntent = parsedIntent;
+    });
+    
+    // Request focus on the TextField to show keyboard and cursor
+    Future.delayed(const Duration(milliseconds: 100), () {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _omniboxKey.currentState?.requestTextFieldFocus();
       });
-      // Execute the intent directly (navigate to appropriate screen)
-      _handleIntent(parsedIntent);
-    } else {
-      // If parsing failed, just populate and focus the text field
-      setState(() {
-        _currentInput = example;
-        _hasSubmitted = false;
-        _parsedIntent = parsedIntent;
-      });
-      // Request focus on the TextField
-      Future.delayed(const Duration(milliseconds: 100), () {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _omniboxKey.currentState?.requestTextFieldFocus();
-        });
-      });
-    }
+    });
   }
 
   void _handleCreate(String query) {
@@ -216,14 +319,22 @@ class _WelcomeViewState extends State<WelcomeView> {
     final actualQuery = _omniboxController.text.trim();
     final queryToUse = actualQuery.isNotEmpty ? actualQuery : query;
     
+    // Parse using IntentParserService first
+    final parsedIntent = _intentParser.parse(queryToUse);
+    
     setState(() {
       _currentInput = queryToUse;
       _hasSubmitted = true; // User pressed Enter
-      // Parse the input to determine UI state
-      _parsedIntent = _intentParser.parse(queryToUse);
+      _parsedIntent = parsedIntent;
     });
     
-    // Parse the natural language input using NaturalLanguageParser for navigation
+    // If intent parsing was successful, use the intent-based routing
+    if (parsedIntent.isSuccess) {
+      _handleIntent(parsedIntent);
+      return;
+    }
+    
+    // Fallback to NaturalLanguageParser for backward compatibility
     final parsed = NaturalLanguageParser.parse(queryToUse);
     
     if (parsed.type == ParsedReminderType.subscription) {
@@ -361,19 +472,15 @@ class _WelcomeViewState extends State<WelcomeView> {
     // Parse the current input if not already parsed
     _parsedIntent ??= _intentParser.parse(_currentInput!);
 
-    // Success view: when parsing was successful (show while typing or after submit)
-    if (_parsedIntent!.isSuccess) {
-      return SuccessIntentView(parsedIntent: _parsedIntent!);
-    }
-
     // Help/Suggestion view: only show when user has submitted (pressed Enter) AND parsing failed
-    if (_hasSubmitted) {
+    if (_hasSubmitted && !_parsedIntent!.isSuccess) {
       return HelpSuggestionView(
         onExampleTap: _handleExampleTap,
       );
     }
 
-    // While typing and not successful yet, show default view (don't show errors prematurely)
+    // Show default view for all other cases (including when parsing is successful)
+    // The confirmation card has been removed per user request
     return DefaultWelcomeView(
       onExampleTap: _handleExampleTap,
     );
