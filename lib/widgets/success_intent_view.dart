@@ -27,6 +27,17 @@ class SuccessIntentView extends StatelessWidget {
     return action[0].toUpperCase() + action.substring(1);
   }
 
+  IconData _getActionIcon(String? action) {
+    switch (action) {
+      case 'show':
+        return Icons.visibility;
+      case 'create':
+        return Icons.add_circle_outline;
+      default:
+        return Icons.play_arrow;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -62,7 +73,7 @@ class SuccessIntentView extends StatelessWidget {
                 context,
                 'Action',
                 _formatAction(parsedIntent.action),
-                Icons.play_arrow,
+                _getActionIcon(parsedIntent.action),
               ),
               const SizedBox(height: 12),
               _buildInfoRow(
@@ -127,4 +138,5 @@ class SuccessIntentView extends StatelessWidget {
     );
   }
 }
+
 
