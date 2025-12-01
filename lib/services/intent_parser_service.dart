@@ -20,6 +20,22 @@ class IntentParserService {
     'new',
   ];
 
+  // Keywords for action 'show' (viewing existing items)
+  static const List<String> _showActionKeywords = [
+    'show me',
+    'show',
+    'view',
+    'do i have',
+    'what are my',
+    'list my',
+    'list',
+    'see my',
+    'see',
+    'display',
+    'get my',
+    'find my',
+  ];
+
   // Keywords for category 'appointment'
   static const List<String> _appointmentCategoryKeywords = [
     'appointment',
@@ -90,7 +106,18 @@ class IntentParserService {
   }
 
   /// Extract action from text using keyword matching
+  /// 
+  /// Returns 'show' for viewing existing items, 'create' for creating new items.
+  /// 'show' keywords are checked first as they are more specific phrases.
   String? _extractAction(String text) {
+    // Check for 'show' action first (more specific phrases)
+    for (final keyword in _showActionKeywords) {
+      if (text.contains(keyword)) {
+        return 'show';
+      }
+    }
+    
+    // Check for 'create' action
     for (final keyword in _createActionKeywords) {
       if (text.contains(keyword)) {
         return 'create';
