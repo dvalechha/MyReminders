@@ -15,6 +15,9 @@ import '../models/parsed_intent.dart';
 import 'subscription_form_view.dart';
 import 'appointment_form_view.dart';
 import 'task_form_view.dart';
+import 'subscriptions_list_view.dart';
+import 'appointments_list_view.dart';
+import 'tasks_list_view.dart';
 
 class WelcomeView extends StatefulWidget {
   const WelcomeView({super.key});
@@ -94,16 +97,71 @@ class _WelcomeViewState extends State<WelcomeView> {
       }
     });
     
-    // If the parsed intent is successful, treat it as a create action and navigate
-    // This handles the case where user selects a suggestion and hits enter
+    // If the parsed intent is successful, handle based on action type
     if (_parsedIntent != null && _parsedIntent!.isSuccess) {
-      _handleCreate(query);
+      _handleIntent(_parsedIntent!);
       return;
     }
     
     // TODO: In next iteration, implement search results view
     // This will show matching items from subscriptions, appointments, tasks, and custom reminders
     debugPrint('Search triggered: $query');
+  }
+
+  /// Central handler for parsed intents - routes to appropriate screens
+  void _handleIntent(ParsedIntent intent) {
+    final action = intent.action;
+    final category = intent.category;
+
+    if (action == 'show') {
+      // Navigate to the appropriate list screen
+      _navigateToListScreen(category);
+    } else if (action == 'create') {
+      // Use the existing create handler
+      _handleCreate(intent.originalText);
+    } else {
+      // Unknown action - show help
+      debugPrint('Unknown action: $action');
+    }
+  }
+
+  /// Navigate to the appropriate list screen based on category
+  void _navigateToListScreen(String? category) {
+    Widget? screen;
+    
+    switch (category) {
+      case 'subscription':
+        screen = const SubscriptionsListView();
+        break;
+      case 'appointment':
+        screen = const AppointmentsListView();
+        break;
+      case 'task':
+        screen = const TasksListView();
+        break;
+      case 'reminder':
+        // Reminders can be shown as tasks or a dedicated screen
+        screen = const TasksListView();
+        break;
+      default:
+        debugPrint('Unknown category for show action: $category');
+        return;
+    }
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => screen!),
+    ).then((_) {
+      // Clear input when returning from list screen
+      if (mounted) {
+        setState(() {
+          _currentInput = null;
+          _parsedIntent = null;
+          _hasSubmitted = false;
+        });
+        _omniboxController.clear();
+      }
+    });
   }
 
   void _handleInputChange(String query) {
@@ -124,20 +182,33 @@ class _WelcomeViewState extends State<WelcomeView> {
     _omniboxController.selection = TextSelection.fromPosition(
       TextPosition(offset: example.length),
     );
-    // Reset submitted flag and update state immediately when user selects an example
-    setState(() {
-      _currentInput = example;
-      _hasSubmitted = false;
-      // Parse the example immediately
-      _parsedIntent = _intentParser.parse(example);
-    });
-    // Request focus on the TextField to show keyboard and cursor
-    // Use a longer delay to ensure the tap event completes and UI updates
-    Future.delayed(const Duration(milliseconds: 100), () {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _omniboxKey.currentState?.requestTextFieldFocus();
+    
+    // Parse the example and execute the action directly
+    final parsedIntent = _intentParser.parse(example);
+    
+    // If parsing was successful, execute the action immediately
+    if (parsedIntent.isSuccess) {
+      setState(() {
+        _currentInput = example;
+        _hasSubmitted = true;
+        _parsedIntent = parsedIntent;
       });
-    });
+      // Execute the intent directly (navigate to appropriate screen)
+      _handleIntent(parsedIntent);
+    } else {
+      // If parsing failed, just populate and focus the text field
+      setState(() {
+        _currentInput = example;
+        _hasSubmitted = false;
+        _parsedIntent = parsedIntent;
+      });
+      // Request focus on the TextField
+      Future.delayed(const Duration(milliseconds: 100), () {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _omniboxKey.currentState?.requestTextFieldFocus();
+        });
+      });
+    }
   }
 
   void _handleCreate(String query) {
@@ -282,7 +353,9 @@ class _WelcomeViewState extends State<WelcomeView> {
   Widget _buildContentArea() {
     // Default view: when input is empty
     if (_currentInput == null || _currentInput!.trim().isEmpty) {
-      return const DefaultWelcomeView();
+      return DefaultWelcomeView(
+        onExampleTap: _handleExampleTap,
+      );
     }
 
     // Parse the current input if not already parsed
@@ -301,7 +374,9 @@ class _WelcomeViewState extends State<WelcomeView> {
     }
 
     // While typing and not successful yet, show default view (don't show errors prematurely)
-    return const DefaultWelcomeView();
+    return DefaultWelcomeView(
+      onExampleTap: _handleExampleTap,
+    );
   }
 
   @override
