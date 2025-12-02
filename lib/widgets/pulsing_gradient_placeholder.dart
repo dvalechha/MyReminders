@@ -49,73 +49,75 @@ class _PulsingGradientPlaceholderState
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            // Use available height but cap at 200, minimum 50 (can shrink more)
-            final height = constraints.maxHeight > 0 && constraints.maxHeight.isFinite
-                ? constraints.maxHeight.clamp(50.0, 200.0)
-                : 200.0;
-            
-            return Container(
-              width: double.infinity,
-              height: height,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Theme.of(context).colorScheme.primary.withValues(alpha: _animation.value),
-                    Theme.of(context)
-                        .colorScheme
-                        .secondary
-                        .withValues(alpha: _animation.value * 0.6),
-                    Theme.of(context)
-                        .colorScheme
-                        .tertiary
-                        .withValues(alpha: _animation.value * 0.4),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
+        return SizedBox(
+          width: double.infinity,
+          height: double.infinity,
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Theme.of(context).colorScheme.primary.withValues(alpha: _animation.value),
+                  Theme.of(context)
+                      .colorScheme
+                      .secondary
+                      .withValues(alpha: _animation.value * 0.6),
+                  Theme.of(context)
+                      .colorScheme
+                      .tertiary
+                      .withValues(alpha: _animation.value * 0.4),
+                ],
               ),
-              child: hasInput
-                  ? Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.auto_awesome,
-                              size: height < 100 ? 32 : 48,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                            SizedBox(height: height < 100 ? 8 : 16),
-                            Text(
-                              widget.inputText!,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.95),
-                                fontSize: height < 100 ? 14 : 18,
-                                fontWeight: FontWeight.w500,
-                                height: 1.4,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final height = constraints.maxHeight;
+                final isCompact = height < 120;
+                
+                return hasInput
+                    ? Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.auto_awesome,
+                                size: isCompact ? 32 : 48,
+                                color: Colors.white.withValues(alpha: 0.9),
                               ),
-                              textAlign: TextAlign.center,
-                              maxLines: null,
-                              overflow: TextOverflow.visible,
-                            ),
-                          ],
+                              SizedBox(height: isCompact ? 8 : 16),
+                              Text(
+                                widget.inputText!,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.95),
+                                  fontSize: isCompact ? 14 : 18,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.4,
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: null,
+                                overflow: TextOverflow.visible,
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    )
-                  : Center(
-                      child: Icon(
-                        Icons.search_rounded,
-                        size: height < 100 ? 48 : 64,
-                        color: Colors.white.withValues(alpha: _animation.value),
-                      ),
-                    ),
-            );
-          },
+                      )
+                    : Center(
+                        child: Icon(
+                          Icons.search_rounded,
+                          size: isCompact ? 48 : 64,
+                          color: Colors.white.withValues(alpha: _animation.value),
+                        ),
+                      );
+              },
+            ),
+          ),
         );
       },
     );

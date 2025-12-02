@@ -37,33 +37,60 @@ class DefaultWelcomeView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Try these…',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Check if we have bounded height constraints
+        final hasBoundedHeight = constraints.maxHeight != double.infinity && constraints.maxHeight > 0;
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: hasBoundedHeight ? MainAxisSize.max : MainAxisSize.min,
+          children: [
+            Text(
+              'Try these…',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+            ),
+            const SizedBox(height: 12),
+            if (hasBoundedHeight)
+              // In bounded context (inside Expanded), use Expanded with ListView
+              Expanded(
+                child: ListView.separated(
+                  itemCount: _exampleCommands.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final example = _exampleCommands[index];
+                    return _ExampleCommandCard(
+                      command: example,
+                      onTap: onExampleTap != null 
+                          ? () => onExampleTap!(example.text)
+                          : null,
+                    );
+                  },
+                ),
+              )
+            else
+              // In unbounded context, use shrinkWrap ListView
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _exampleCommands.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final example = _exampleCommands[index];
+                  return _ExampleCommandCard(
+                    command: example,
+                    onTap: onExampleTap != null 
+                        ? () => onExampleTap!(example.text)
+                        : null,
+                  );
+                },
               ),
-        ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: ListView.separated(
-            itemCount: _exampleCommands.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final example = _exampleCommands[index];
-              return _ExampleCommandCard(
-                command: example,
-                onTap: onExampleTap != null 
-                    ? () => onExampleTap!(example.text)
-                    : null,
-              );
-            },
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }

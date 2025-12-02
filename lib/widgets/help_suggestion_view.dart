@@ -19,34 +19,59 @@ class HelpSuggestionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Not sure what you meant. Try one of these:',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Check if we have bounded height constraints
+        final hasBoundedHeight = constraints.maxHeight != double.infinity && constraints.maxHeight > 0;
+        
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: hasBoundedHeight ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              Text(
+                'Not sure what you meant. Try one of these:',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+                    ),
+              ),
+              const SizedBox(height: 16),
+              if (hasBoundedHeight)
+                // In bounded context (inside Expanded), use Expanded with ListView
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _exampleCommands.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final example = _exampleCommands[index];
+                      return _ExampleCard(
+                        example: example,
+                        onTap: () => onExampleTap(example),
+                      );
+                    },
+                  ),
+                )
+              else
+                // In unbounded context, use shrinkWrap ListView
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _exampleCommands.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final example = _exampleCommands[index];
+                    return _ExampleCard(
+                      example: example,
+                      onTap: () => onExampleTap(example),
+                    );
+                  },
                 ),
+            ],
           ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView.separated(
-              itemCount: _exampleCommands.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final example = _exampleCommands[index];
-                return _ExampleCard(
-                  example: example,
-                  onTap: () => onExampleTap(example),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
