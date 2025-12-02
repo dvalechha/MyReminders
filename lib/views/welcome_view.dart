@@ -461,11 +461,18 @@ class _WelcomeViewState extends State<WelcomeView> {
     }
   }
 
-  Widget _buildContentArea() {
+  Widget _buildContentArea(bool keyboardVisible) {
     // Default view: when input is empty
     if (_currentInput == null || _currentInput!.trim().isEmpty) {
-      return DefaultWelcomeView(
-        onExampleTap: _handleExampleTap,
+      return AnimatedOpacity(
+        opacity: keyboardVisible ? 0.0 : 1.0,
+        duration: const Duration(milliseconds: 250),
+        child: IgnorePointer(
+          ignoring: keyboardVisible,
+          child: DefaultWelcomeView(
+            onExampleTap: _handleExampleTap,
+          ),
+        ),
       );
     }
 
@@ -480,9 +487,16 @@ class _WelcomeViewState extends State<WelcomeView> {
     }
 
     // Show default view for all other cases (including when parsing is successful)
-    // The confirmation card has been removed per user request
-    return DefaultWelcomeView(
-      onExampleTap: _handleExampleTap,
+    // Hide suggestions when keyboard is visible
+    return AnimatedOpacity(
+      opacity: keyboardVisible ? 0.0 : 1.0,
+      duration: const Duration(milliseconds: 250),
+      child: IgnorePointer(
+        ignoring: keyboardVisible,
+        child: DefaultWelcomeView(
+          onExampleTap: _handleExampleTap,
+        ),
+      ),
     );
   }
 
@@ -495,6 +509,9 @@ class _WelcomeViewState extends State<WelcomeView> {
 
   @override
   Widget build(BuildContext context) {
+    // Detect keyboard visibility
+    final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+    
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: SafeArea(
@@ -521,18 +538,19 @@ class _WelcomeViewState extends State<WelcomeView> {
                 existingItems: _getExistingItems(),
               ),
               const SizedBox(height: 12),
-              // Placeholder visualization that reacts to input
-              Flexible(
-                flex: 1,
+              // Adaptive animation/preview box that shrinks when keyboard appears
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                height: keyboardVisible ? 100.0 : 200.0,
                 child: PulsingGradientPlaceholder(
                   inputText: _currentInput,
                 ),
               ),
               const SizedBox(height: 12),
-              // Dynamic content area based on parsing state
-              Flexible(
-                flex: 2,
-                child: _buildContentArea(),
+              // Content area - scrollable when needed
+              Expanded(
+                child: _buildContentArea(keyboardVisible),
               ),
             ],
           ),
