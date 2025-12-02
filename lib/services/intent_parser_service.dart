@@ -92,10 +92,16 @@ class IntentParserService {
     String textForKeywords = _removeDateTimePhrases(lowerText);
 
     // Extract action
-    final action = _extractAction(textForKeywords);
+    var action = _extractAction(textForKeywords);
 
     // Extract category
     final category = _extractCategory(textForKeywords);
+
+    // If category is found but no action, default to 'create' action
+    // This handles cases like "Appointment with Dr. Smith" where action is implicit
+    if (category != null && action == null) {
+      action = 'create';
+    }
 
     return ParsedIntent(
       action: action,
