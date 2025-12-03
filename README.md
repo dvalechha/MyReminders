@@ -38,8 +38,7 @@ lib/
 │   └── subscription_provider.dart # State management (Provider)
 └── views/
     ├── subscriptions_list_view.dart    # Main list view
-    ├── subscription_form_view.dart     # Add/Edit form
-    └── custom_reminder_modal.dart      # Custom reminder picker
+    └── subscription_form_view.dart     # Add/Edit form
 ```
 
 ## Dependencies

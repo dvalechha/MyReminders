@@ -30,6 +30,21 @@ class SubscriptionsListView extends StatefulWidget {
 class _SubscriptionsListViewState extends State<SubscriptionsListView> {
   String _searchText = '';
   bool _isChartExpanded = true;
+  bool _isInit = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // Refresh data every time the view becomes visible
+    if (_isInit) {
+      // First time - let provider handle initial load
+      _isInit = false;
+    } else {
+      // Subsequent times - refresh data from the provider
+      Provider.of<SubscriptionProvider>(context, listen: false).loadSubscriptions();
+    }
+  }
 
   List<Subscription> _filterSubscriptions(
       List<Subscription> subscriptions, String searchText) {
@@ -495,12 +510,11 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (group) => Colors.grey[800]!,
-            tooltipRoundedRadius: 8,
             tooltipPadding: const EdgeInsets.all(8),
             tooltipMargin: 8,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               return BarTooltipItem(
-                '\$${rod.toY.toStringAsFixed(2)}',
+                '\${rod.toY.toStringAsFixed(2)}',
                 const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w500,

@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/subscription_provider.dart';
 import '../providers/appointment_provider.dart';
 import '../providers/task_provider.dart';
-import '../providers/custom_reminder_provider.dart';
 import '../widgets/omnibox.dart';
 import '../widgets/pulsing_gradient_placeholder.dart';
 import '../widgets/default_welcome_view.dart';
@@ -60,7 +59,6 @@ class _WelcomeViewState extends State<WelcomeView> {
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
     final appointmentProvider = Provider.of<AppointmentProvider>(context, listen: false);
     final taskProvider = Provider.of<TaskProvider>(context, listen: false);
-    final customReminderProvider = Provider.of<CustomReminderProvider>(context, listen: false);
     
     // Add subscription titles
     for (final subscription in subscriptionProvider.subscriptions) {
@@ -75,11 +73,6 @@ class _WelcomeViewState extends State<WelcomeView> {
     // Add task titles
     for (final task in taskProvider.tasks) {
       items.add(task.title);
-    }
-    
-    // Add custom reminder titles
-    for (final reminder in customReminderProvider.customReminders) {
-      items.add(reminder.title);
     }
     
     return items;

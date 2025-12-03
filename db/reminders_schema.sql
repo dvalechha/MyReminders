@@ -109,31 +109,7 @@ CREATE TRIGGER update_tasks_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- ============================================
--- 5. Custom Reminders Table
--- ============================================
-CREATE TABLE IF NOT EXISTS custom_reminder (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    category_id UUID REFERENCES category(id) ON DELETE SET NULL,
-    title TEXT NOT NULL,
-    event_time TIMESTAMPTZ,
-    notes TEXT,
-    reminder_offset_minutes INT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
 
--- Indexes for custom_reminder
-CREATE INDEX IF NOT EXISTS idx_custom_reminder_user_id ON custom_reminder(user_id);
-CREATE INDEX IF NOT EXISTS idx_custom_reminder_category_id ON custom_reminder(category_id);
-CREATE INDEX IF NOT EXISTS idx_custom_reminder_event_time ON custom_reminder(event_time);
-
--- Trigger to update updated_at timestamp
-CREATE TRIGGER update_custom_reminder_updated_at
-    BEFORE UPDATE ON custom_reminder
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
 -- Row Level Security (RLS) Policies
@@ -144,7 +120,6 @@ ALTER TABLE category ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE custom_reminder ENABLE ROW LEVEL SECURITY;
 
 -- Category: Read-only for all authenticated users
 CREATE POLICY "Category is viewable by authenticated users"
@@ -231,30 +206,6 @@ CREATE POLICY "Users can delete their own tasks"
     TO authenticated
     USING (auth.uid() = user_id);
 
--- Custom Reminders: Users can only see their own custom reminders
-CREATE POLICY "Users can view their own custom reminders"
-    ON custom_reminder
-    FOR SELECT
-    TO authenticated
-    USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can insert their own custom reminders"
-    ON custom_reminder
-    FOR INSERT
-    TO authenticated
-    WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own custom reminders"
-    ON custom_reminder
-    FOR UPDATE
-    TO authenticated
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own custom reminders"
-    ON custom_reminder
-    FOR DELETE
-    TO authenticated
-    USING (auth.uid() = user_id);
 
 
