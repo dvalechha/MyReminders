@@ -3,7 +3,6 @@ import 'package:path/path.dart';
 import '../models/subscription.dart';
 import '../models/appointment.dart';
 import '../models/task.dart';
-import '../models/custom_reminder.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -75,19 +74,6 @@ class DatabaseHelper {
         createdDate TEXT NOT NULL
       )
     ''');
-
-    await db.execute('''
-      CREATE TABLE custom_reminders (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        category TEXT,
-        dateTime TEXT,
-        notes TEXT,
-        reminderOffset INTEGER NOT NULL,
-        notificationId TEXT,
-        createdDate TEXT NOT NULL
-      )
-    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -113,19 +99,6 @@ class DatabaseHelper {
           category TEXT,
           dueDate TEXT,
           priority TEXT,
-          notes TEXT,
-          reminderOffset INTEGER NOT NULL,
-          notificationId TEXT,
-          createdDate TEXT NOT NULL
-        )
-      ''');
-
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS custom_reminders (
-          id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          category TEXT,
-          dateTime TEXT,
           notes TEXT,
           reminderOffset INTEGER NOT NULL,
           notificationId TEXT,
@@ -286,49 +259,6 @@ class DatabaseHelper {
     return await db.delete('tasks', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ========== CUSTOM REMINDERS ==========
-  Future<String> insertCustomReminder(CustomReminder reminder) async {
-    final db = await database;
-    await db.insert('custom_reminders', reminder.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
-    return reminder.id;
-  }
 
-  Future<List<CustomReminder>> getAllCustomReminders() async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'custom_reminders',
-      orderBy: 'dateTime ASC, createdDate DESC',
-    );
-    return List.generate(
-        maps.length, (i) => CustomReminder.fromMap(maps[i]));
-  }
-
-  Future<CustomReminder?> getCustomReminderById(String id) async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'custom_reminders',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-    if (maps.isEmpty) return null;
-    return CustomReminder.fromMap(maps.first);
-  }
-
-  Future<int> updateCustomReminder(CustomReminder reminder) async {
-    final db = await database;
-    return await db.update(
-      'custom_reminders',
-      reminder.toMap(),
-      where: 'id = ?',
-      whereArgs: [reminder.id],
-    );
-  }
-
-  Future<int> deleteCustomReminder(String id) async {
-    final db = await database;
-    return await db.delete('custom_reminders',
-        where: 'id = ?', whereArgs: [id]);
-  }
 }
 

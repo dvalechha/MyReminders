@@ -175,8 +175,6 @@ class NotificationService {
       tz.TZDateTime.from(actualTriggerDate, tz.local),
       notificationDetails,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
     );
 
     print('Notification scheduled for $actualTriggerDate (notificationId: $notificationId)');
@@ -328,8 +326,6 @@ class NotificationService {
       tz.TZDateTime.from(reminderTime, tz.local),
       notificationDetails,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
     );
 
     print('Time-based reminder scheduled for $reminderTime (notificationId: $notificationId)');

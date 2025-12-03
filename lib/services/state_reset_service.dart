@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/subscription_provider.dart';
 import '../providers/appointment_provider.dart';
 import '../providers/task_provider.dart';
-import '../providers/custom_reminder_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../providers/navigation_model.dart';
 
@@ -28,10 +27,6 @@ class StateResetService {
       // Reset TaskProvider
       final taskProvider = Provider.of<TaskProvider>(context, listen: false);
       taskProvider.clearState();
-
-      // Reset CustomReminderProvider
-      final customReminderProvider = Provider.of<CustomReminderProvider>(context, listen: false);
-      customReminderProvider.clearState();
 
       // Reset UserProfileProvider
       final userProfileProvider = Provider.of<UserProfileProvider>(context, listen: false);

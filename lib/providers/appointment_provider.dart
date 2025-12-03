@@ -33,6 +33,8 @@ class AppointmentProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Clear existing appointments before loading new data to prevent stale data
+      _appointments.clear();
       _appointments = await _dbHelper.getAllAppointments();
       await _rescheduleAllReminders();
     } catch (e) {

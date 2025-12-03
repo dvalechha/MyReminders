@@ -39,6 +39,8 @@ class SubscriptionProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Clear existing subscriptions before loading new data to prevent stale data
+      _subscriptions.clear();
       _subscriptions = await _dbHelper.getAllSubscriptions();
       // Reschedule all reminders on app start
       await _notificationService.rescheduleAllReminders(_subscriptions);
