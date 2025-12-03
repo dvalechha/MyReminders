@@ -15,20 +15,23 @@ class TasksListView extends StatefulWidget {
 
 class _TasksListViewState extends State<TasksListView> {
   String _searchText = '';
-  bool _isInit = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Use a PostFrameCallback to ensure the context is available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<TaskProvider>(context, listen: false).loadTasks();
+    });
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
-    // Refresh data every time the view becomes visible
-    if (_isInit) {
-      // First time - let provider handle initial load
-      _isInit = false;
-    } else {
-      // Subsequent times - refresh data from the provider
+    // Refresh data every time dependencies change (e.g., when returning to this view)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<TaskProvider>(context, listen: false).loadTasks();
-    }
+    });
   }
 
   List<Task> _filterTasks(List<Task> tasks, String searchText) {

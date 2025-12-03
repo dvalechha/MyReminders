@@ -36,7 +36,23 @@ class TaskProvider with ChangeNotifier {
     try {
       // Clear existing tasks before loading new data to prevent stale data
       _tasks.clear();
-      _tasks = await _dbHelper.getAllTasks();
+
+      // Always attempt to fetch latest from Supabase when available
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
+          final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
+          _tasks = supabaseRows
+              .map((row) => Task.fromSupabaseMap(row))
+              .toList();
+        } catch (e) {
+          debugPrint('Warning: Failed to fetch tasks from Supabase, falling back to local: $e');
+          _tasks = await _dbHelper.getAllTasks();
+        }
+      } else {
+        // Fallback to local when user not authenticated
+        _tasks = await _dbHelper.getAllTasks();
+      }
       await _rescheduleAllReminders();
     } catch (e) {
       print('Error loading tasks: $e');
@@ -84,13 +100,10 @@ class TaskProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
-      // Save to local SQLite first (for offline support)
-      await _dbHelper.insertTask(updatedTask);
-
-      // Also save to Supabase if user is authenticated
-      try {
-        final user = Supabase.instance.client.auth.currentUser;
-        if (user != null) {
+      // Save to Supabase if authenticated, otherwise save to local SQLite
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
           // Get category ID if category is specified
           String? categoryId;
           if (task.category != null && task.category!.isNotEmpty) {
@@ -110,11 +123,15 @@ class TaskProvider with ChangeNotifier {
           
           await _supabaseRepository.create(supabaseData);
           debugPrint('Task saved to Supabase: ${updatedTask.title}');
+        } catch (e) {
+          // If Supabase fails, fall back to local save
+          debugPrint('Warning: Failed to save task to Supabase: $e');
+          debugPrint('Falling back to local save.');
+          await _dbHelper.insertTask(updatedTask);
         }
-      } catch (e) {
-        // Log error but don't fail - task is already saved locally
-        debugPrint('Warning: Failed to save task to Supabase: $e');
-        debugPrint('Task saved locally only. Will sync when connection is available.');
+      } else {
+        // Save locally when not authenticated
+        await _dbHelper.insertTask(updatedTask);
       }
 
       if (updatedTask.reminderOffset != ReminderOffset.none &&
@@ -147,13 +164,10 @@ class TaskProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
-      // Update local SQLite first
-      await _dbHelper.updateTask(updatedTask);
-
-      // Also update in Supabase if user is authenticated
-      try {
-        final user = Supabase.instance.client.auth.currentUser;
-        if (user != null) {
+      // Update in Supabase if authenticated, otherwise update local SQLite
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
           // Get category ID if category is specified
           String? categoryId;
           if (task.category != null && task.category!.isNotEmpty) {
@@ -173,11 +187,15 @@ class TaskProvider with ChangeNotifier {
           
           await _supabaseRepository.update(updatedTask.id, supabaseData);
           debugPrint('Task updated in Supabase: ${updatedTask.title}');
+        } catch (e) {
+          // If Supabase fails, fall back to local update
+          debugPrint('Warning: Failed to update task in Supabase: $e');
+          debugPrint('Falling back to local update.');
+          await _dbHelper.updateTask(updatedTask);
         }
-      } catch (e) {
-        // Log error but don't fail - task is already updated locally
-        debugPrint('Warning: Failed to update task in Supabase: $e');
-        debugPrint('Task updated locally only. Will sync when connection is available.');
+      } else {
+        // Update locally when not authenticated
+        await _dbHelper.updateTask(updatedTask);
       }
 
       if (updatedTask.reminderOffset != ReminderOffset.none &&
@@ -202,20 +220,21 @@ class TaskProvider with ChangeNotifier {
         await _notificationService.cancelReminder(task.notificationId!);
       }
 
-      // Delete from local SQLite first
-      await _dbHelper.deleteTask(id);
-
-      // Also delete from Supabase if user is authenticated
-      try {
-        final user = Supabase.instance.client.auth.currentUser;
-        if (user != null) {
+      // Delete from Supabase if authenticated, otherwise delete from local SQLite
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
           await _supabaseRepository.delete(id);
           debugPrint('Task deleted from Supabase: ${task?.title ?? "Unknown"}');
+        } catch (e) {
+          // If Supabase fails, fall back to local delete
+          debugPrint('Warning: Failed to delete task from Supabase: $e');
+          debugPrint('Falling back to local delete.');
+          await _dbHelper.deleteTask(id);
         }
-      } catch (e) {
-        // Log error but don't fail - task is already deleted locally
-        debugPrint('Warning: Failed to delete task from Supabase: $e');
-        debugPrint('Task deleted locally only. Will sync when connection is available.');
+      } else {
+        // Delete locally when not authenticated
+        await _dbHelper.deleteTask(id);
       }
 
       await loadTasks();

@@ -35,7 +35,23 @@ class AppointmentProvider with ChangeNotifier {
     try {
       // Clear existing appointments before loading new data to prevent stale data
       _appointments.clear();
-      _appointments = await _dbHelper.getAllAppointments();
+
+      // Always attempt to fetch latest from Supabase when available
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
+          final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
+          _appointments = supabaseRows
+              .map((row) => Appointment.fromSupabaseMap(row))
+              .toList();
+        } catch (e) {
+          debugPrint('Warning: Failed to fetch appointments from Supabase, falling back to local: $e');
+          _appointments = await _dbHelper.getAllAppointments();
+        }
+      } else {
+        // Fallback to local when user not authenticated
+        _appointments = await _dbHelper.getAllAppointments();
+      }
       await _rescheduleAllReminders();
     } catch (e) {
       print('Error loading appointments: $e');
@@ -81,13 +97,10 @@ class AppointmentProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
-      // Save to local SQLite first (for offline support)
-      await _dbHelper.insertAppointment(updatedAppointment);
-
-      // Also save to Supabase if user is authenticated
-      try {
-        final user = Supabase.instance.client.auth.currentUser;
-        if (user != null) {
+      // Save to Supabase if authenticated, otherwise save to local SQLite
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
           // Get category ID if category is specified
           String? categoryId;
           if (appointment.category != null && appointment.category!.isNotEmpty) {
@@ -107,11 +120,15 @@ class AppointmentProvider with ChangeNotifier {
           
           await _supabaseRepository.create(supabaseData);
           debugPrint('Appointment saved to Supabase: ${updatedAppointment.title}');
+        } catch (e) {
+          // If Supabase fails, fall back to local save
+          debugPrint('Warning: Failed to save appointment to Supabase: $e');
+          debugPrint('Falling back to local save.');
+          await _dbHelper.insertAppointment(updatedAppointment);
         }
-      } catch (e) {
-        // Log error but don't fail - appointment is already saved locally
-        debugPrint('Warning: Failed to save appointment to Supabase: $e');
-        debugPrint('Appointment saved locally only. Will sync when connection is available.');
+      } else {
+        // Save locally when not authenticated
+        await _dbHelper.insertAppointment(updatedAppointment);
       }
 
       if (updatedAppointment.reminderOffset != ReminderOffset.none &&
@@ -143,13 +160,10 @@ class AppointmentProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
-      // Update local SQLite first
-      await _dbHelper.updateAppointment(updatedAppointment);
-
-      // Also update in Supabase if user is authenticated
-      try {
-        final user = Supabase.instance.client.auth.currentUser;
-        if (user != null) {
+      // Update in Supabase if authenticated, otherwise update local SQLite
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
           // Get category ID if category is specified
           String? categoryId;
           if (appointment.category != null && appointment.category!.isNotEmpty) {
@@ -169,11 +183,15 @@ class AppointmentProvider with ChangeNotifier {
           
           await _supabaseRepository.update(updatedAppointment.id, supabaseData);
           debugPrint('Appointment updated in Supabase: ${updatedAppointment.title}');
+        } catch (e) {
+          // If Supabase fails, fall back to local update
+          debugPrint('Warning: Failed to update appointment in Supabase: $e');
+          debugPrint('Falling back to local update.');
+          await _dbHelper.updateAppointment(updatedAppointment);
         }
-      } catch (e) {
-        // Log error but don't fail - appointment is already updated locally
-        debugPrint('Warning: Failed to update appointment in Supabase: $e');
-        debugPrint('Appointment updated locally only. Will sync when connection is available.');
+      } else {
+        // Update locally when not authenticated
+        await _dbHelper.updateAppointment(updatedAppointment);
       }
 
       if (updatedAppointment.reminderOffset != ReminderOffset.none &&
@@ -197,20 +215,21 @@ class AppointmentProvider with ChangeNotifier {
         await _notificationService.cancelReminder(appointment.notificationId!);
       }
 
-      // Delete from local SQLite first
-      await _dbHelper.deleteAppointment(id);
-
-      // Also delete from Supabase if user is authenticated
-      try {
-        final user = Supabase.instance.client.auth.currentUser;
-        if (user != null) {
+      // Delete from Supabase if authenticated, otherwise delete from local SQLite
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
           await _supabaseRepository.delete(id);
           debugPrint('Appointment deleted from Supabase: ${appointment?.title ?? "Unknown"}');
+        } catch (e) {
+          // If Supabase fails, fall back to local delete
+          debugPrint('Warning: Failed to delete appointment from Supabase: $e');
+          debugPrint('Falling back to local delete.');
+          await _dbHelper.deleteAppointment(id);
         }
-      } catch (e) {
-        // Log error but don't fail - appointment is already deleted locally
-        debugPrint('Warning: Failed to delete appointment from Supabase: $e');
-        debugPrint('Appointment deleted locally only. Will sync when connection is available.');
+      } else {
+        // Delete locally when not authenticated
+        await _dbHelper.deleteAppointment(id);
       }
 
       await loadAppointments();

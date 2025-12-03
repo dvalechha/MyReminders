@@ -12,6 +12,8 @@ class SubscriptionFormView extends StatefulWidget {
   final String? initialServiceName;
   final DateTime? initialRenewalDate;
   final String? initialNotes;
+  final double? initialAmount;
+  final Currency? initialCurrency;
 
   const SubscriptionFormView({
     super.key,
@@ -19,6 +21,8 @@ class SubscriptionFormView extends StatefulWidget {
     this.initialServiceName,
     this.initialRenewalDate,
     this.initialNotes,
+    this.initialAmount,
+    this.initialCurrency,
   });
 
   @override
@@ -77,7 +81,8 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
       _loadSubscriptionData();
     } else if (widget.initialServiceName != null ||
                widget.initialRenewalDate != null ||
-               widget.initialNotes != null) {
+               widget.initialNotes != null ||
+               widget.initialAmount != null) {
       // Pre-populate with initial values (for new subscriptions from parser)
       if (widget.initialServiceName != null) {
         _serviceNameController.text = widget.initialServiceName!;
@@ -87,6 +92,12 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
       }
       if (widget.initialNotes != null) {
         _notesController.text = widget.initialNotes!;
+      }
+      if (widget.initialAmount != null && widget.initialAmount! > 0) {
+        _amountController.text = widget.initialAmount!.toStringAsFixed(2);
+      }
+      if (widget.initialCurrency != null) {
+        _selectedCurrency = widget.initialCurrency!;
       }
     }
   }
