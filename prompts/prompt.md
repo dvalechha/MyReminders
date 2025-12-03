@@ -1,35 +1,65 @@
-You are an expert Flutter/Dart developer. Your task is to implement an "Adaptive Layout" on the main input screen to solve a common mobile UI problem: the on-screen keyboard hiding important content.
+**Title:** Implement Delete Functionality in Edit Views for Subscriptions, Tasks, and Appointments
 
-**Goal:**
-The UI must dynamically adjust when the keyboard appears, ensuring the text input field and the animation/preview box are always visible.
+**Context:**
+You are an expert Flutter/Dart developer working on a personal assistant application. The application uses Supabase as a backend and the provider package for state management. The goal is to add a delete functionality to the existing "edit" screens for three different categories: Subscriptions, Tasks, and Appointments.
 
-**Starting Point:**
-The main screen has a `TextField` at the top, a large animation box below it, and a list of "Try these..." suggestions. Currently, the keyboard covers the animation box and suggestions when active.
+**Affected Files:**
+*   **Views (UI):**
+    *   `lib/views/subscription_form_view.dart`
+    *   `lib/views/task_form_view.dart`
+    *   `lib/views/appointment_form_view.dart`
+*   **Providers (State Management & Business Logic):**
+    *   `lib/providers/subscription_provider.dart`
+    *   `lib/providers/task_provider.dart`
+    *   `lib/providers/appointment_provider.dart`
+*   **Repositories (Data Layer):**
+    *   `lib/repositories/subscription_repository.dart`
+    *   `lib/repositories/task_repository.dart`
+    *   `lib/repositories/appointment_repository.dart`
 
 **Instructions:**
 
-1.  **Make the Layout Scrollable and Keyboard-Aware:**
-    *   Wrap the main screen's body (everything below the `TextField`) in a `SingleChildScrollView`. This will prevent rendering overflow errors when the keyboard resizes the view.
-    *   In your `StatefulWidget`, determine if the keyboard is visible. A reliable way to do this is to check if `MediaQuery.of(context).viewInsets.bottom > 0`.
+Your task is to implement a consistent delete workflow across the three "edit" views mentioned above.
 
-2.  **Implement the Adaptive Animation/Preview Box:**
-    *   The animation box should now be an `AnimatedContainer`.
-    *   Its `height` property should be dynamic. When the keyboard is hidden, it should have a large, default height (e.g., `200.0`). When the keyboard is visible, it should shrink to a smaller, compact height (e.g., `100.0`).
-    *   Set a `duration` for the `AnimatedContainer` (e.g., `Duration(milliseconds: 250)`) to ensure the size change is smoothly animated.
-    *   The text currently being typed in the `TextField` should be displayed in real-time inside this animation box. Listen to the `TextEditingController` to update the text.
+1.  **Add a Delete Icon to the AppBar:**
+    *   In each of the three form/edit views (`..._form_view.dart`), add a delete `IconButton` to the `AppBar`'s `actions`.
+    *   This icon should only be visible when editing an existing item (i.e., the view is initialized with an existing model instance), not when creating a new one.
 
-3.  **Conditionally Hide Non-Essential Elements:**
-    *   The "Try these..." suggestions list is only needed when the user hasn't started typing.
-    *   Wrap the suggestions list in a widget that can show/hide it based on keyboard visibility. An `AnimatedOpacity` widget is perfect for this.
-    *   When the keyboard is visible, the opacity should be `0.0` (hidden).
-    *   When the keyboard is hidden, the opacity should be `1.0` (visible).
-    *   To prevent the hidden widget from taking up space and blocking gestures, you can also wrap it in an `IgnorePointer` or `Visibility` widget that is also controlled by the keyboard's visibility state.
+2.  **Implement Confirmation Dialog:**
+    *   When the user taps the delete icon, display a confirmation `AlertDialog`.
+    *   The dialog should have a title like "Delete [Item Type]?" (e.g., "Delete Subscription?").
+    *   It should contain a message asking for confirmation (e.g., "Are you sure you want to delete this subscription? This action cannot be undone.").
+    *   It must have two `TextButton` actions: "Cancel" (which dismisses the dialog) and "Delete" (which proceeds with the deletion).
 
-**Summary of the Desired User Experience:**
-*   **Initial State (Keyboard Hidden):** The screen shows the input field, the large animation box, and the "Try these..." suggestions.
-*   **User Taps `TextField` (Keyboard Appears):**
-    *   The "Try these..." suggestions list smoothly fades out.
-    *   The animation box smoothly animates to its smaller, compact height.
-    *   The layout adjusts, and the user can clearly see the input field, the compact preview box (reflecting their text), and the keyboard.
+3.  **Create Delete Methods in Providers and Repositories:**
+    *   For each module (Subscription, Task, Appointment), implement the full deletion stack:
+    *   **Repository:** Create a `delete` method in the corresponding repository (e.g., `Future<void> delete(int id)` in `subscription_repository.dart`). This method should execute the `supabase.from(...).delete().match({'id': id})` command.
+    *   **Provider:** Create a corresponding `delete` method in the provider (e.g., `Future<void> deleteSubscription(int id)` in `subscription_provider.dart`). This method will call the repository's `delete` method. It should also handle notifying listeners to update the UI.
 
-Please write clean, well-documented, and production-ready Dart code that creates this polished, adaptive user interface.
+4.  **Handle Deletion Logic in the View:**
+    *   In the "Delete" button's `onPressed` callback within the `AlertDialog`:
+        *   Call the appropriate provider's delete method (e.g., `Provider.of<SubscriptionProvider>(context, listen: false).deleteSubscription(subscription.id)`).
+        *   Wrap this call in a `try-catch` block to handle potential errors from the backend.
+        *   Show a loading indicator while the deletion is in progress if possible.
+
+5.  **Implement Post-Deletion User Experience:**
+    *   **On Success:**
+        *   After the `try` block completes successfully, close the confirmation dialog.
+        *   Navigate the user back to the previous screen (the list view) using `Navigator.of(context).pop()`.
+        *   The corresponding list view (e.g., `SubscriptionsListView`) should automatically reflect the deleted item because the provider will have notified its listeners.
+    *   **On Failure:**
+        *   In the `catch` block, capture the error.
+        *   Close the confirmation dialog.
+        *   Display an error message to the user. You can use the existing `showErrorSnackbar` utility from `lib/utils/snackbar.dart`.
+        *   The user should remain on the edit view.
+
+**Summary of Desired User Experience:**
+1.  User opens the edit screen for a task.
+2.  User taps the delete icon in the AppBar.
+3.  A confirmation dialog appears.
+4.  User taps "Delete".
+5.  The app communicates with Supabase to delete the record.
+6.  **If successful:** The user is returned to the task list, and the deleted task is gone.
+7.  **If it fails:** An error snackbar appears, and the user stays on the edit screen.
+
+Please ensure the implementation is clean, robust, and consistently applied across all three modules (Subscriptions, Tasks, and Appointments).

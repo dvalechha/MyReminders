@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../utils/snackbar.dart';
 import '../models/appointment.dart';
 import '../providers/appointment_provider.dart';
 
@@ -179,6 +180,46 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
     }
   }
 
+  Future<void> _showDeleteConfirmation() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Appointment?'),
+        content: const Text(
+          'Are you sure you want to delete this appointment? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      await _deleteAppointment();
+    }
+  }
+
+  Future<void> _deleteAppointment() async {
+    try {
+      final provider = Provider.of<AppointmentProvider>(context, listen: false);
+      await provider.deleteAppointment(widget.appointment!.id);
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        SnackbarHelper.showError(context, 'Error deleting appointment: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -190,6 +231,14 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: widget.appointment != null
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: _showDeleteConfirmation,
+                ),
+              ]
+            : null,
       ),
       body: Form(
         key: _formKey,
