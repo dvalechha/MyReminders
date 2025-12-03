@@ -1,12 +1,17 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/custom_reminder.dart';
 import '../models/appointment.dart';
 import '../database/database_helper.dart';
 import '../services/notification_service.dart';
+import '../repositories/custom_reminder_repository.dart';
+import '../repositories/category_repository.dart';
 
 class CustomReminderProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final NotificationService _notificationService = NotificationService.instance;
+  final CustomReminderRepository _supabaseRepository = CustomReminderRepository();
+  final CategoryRepository _categoryRepository = CategoryRepository();
 
   List<CustomReminder> _customReminders = [];
   bool _isLoading = false;
@@ -77,7 +82,38 @@ class CustomReminderProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
+      // Save to local SQLite first (for offline support)
       await _dbHelper.insertCustomReminder(updatedReminder);
+
+      // Also save to Supabase if user is authenticated
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          // Get category ID if category is specified
+          String? categoryId;
+          if (reminder.category != null && reminder.category!.isNotEmpty) {
+            final category = await _categoryRepository.getByName(reminder.category!);
+            categoryId = category?.id;
+            
+            if (categoryId == null) {
+              debugPrint('Warning: Category "${reminder.category}" not found in Supabase.');
+            }
+          }
+
+          // Convert to Supabase format and save
+          final supabaseData = updatedReminder.toSupabaseMap(
+            userId: user.id,
+            categoryId: categoryId,
+          );
+          
+          await _supabaseRepository.create(supabaseData);
+          debugPrint('Custom reminder saved to Supabase: ${updatedReminder.title}');
+        }
+      } catch (e) {
+        // Log error but don't fail - reminder is already saved locally
+        debugPrint('Warning: Failed to save custom reminder to Supabase: $e');
+        debugPrint('Custom reminder saved locally only. Will sync when connection is available.');
+      }
 
       if (updatedReminder.reminderOffset != ReminderOffset.none &&
           updatedReminder.dateTime != null &&
@@ -109,7 +145,38 @@ class CustomReminderProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
+      // Update local SQLite first
       await _dbHelper.updateCustomReminder(updatedReminder);
+
+      // Also update in Supabase if user is authenticated
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          // Get category ID if category is specified
+          String? categoryId;
+          if (reminder.category != null && reminder.category!.isNotEmpty) {
+            final category = await _categoryRepository.getByName(reminder.category!);
+            categoryId = category?.id;
+            
+            if (categoryId == null) {
+              debugPrint('Warning: Category "${reminder.category}" not found in Supabase.');
+            }
+          }
+
+          // Convert to Supabase format and update
+          final supabaseData = updatedReminder.toSupabaseMap(
+            userId: user.id,
+            categoryId: categoryId,
+          );
+          
+          await _supabaseRepository.update(updatedReminder.id, supabaseData);
+          debugPrint('Custom reminder updated in Supabase: ${updatedReminder.title}');
+        }
+      } catch (e) {
+        // Log error but don't fail - reminder is already updated locally
+        debugPrint('Warning: Failed to update custom reminder in Supabase: $e');
+        debugPrint('Custom reminder updated locally only. Will sync when connection is available.');
+      }
 
       if (updatedReminder.reminderOffset != ReminderOffset.none &&
           updatedReminder.dateTime != null &&
@@ -133,7 +200,22 @@ class CustomReminderProvider with ChangeNotifier {
         await _notificationService.cancelReminder(reminder.notificationId!);
       }
 
+      // Delete from local SQLite first
       await _dbHelper.deleteCustomReminder(id);
+
+      // Also delete from Supabase if user is authenticated
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          await _supabaseRepository.delete(id);
+          debugPrint('Custom reminder deleted from Supabase: ${reminder?.title ?? "Unknown"}');
+        }
+      } catch (e) {
+        // Log error but don't fail - reminder is already deleted locally
+        debugPrint('Warning: Failed to delete custom reminder from Supabase: $e');
+        debugPrint('Custom reminder deleted locally only. Will sync when connection is available.');
+      }
+
       await loadCustomReminders();
     } catch (e) {
       print('Error deleting custom reminder: $e');

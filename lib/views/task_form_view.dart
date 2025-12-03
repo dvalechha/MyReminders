@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../utils/snackbar.dart';
 import '../models/task.dart';
 import '../models/appointment.dart';
 import '../providers/task_provider.dart';
@@ -178,6 +179,46 @@ class _TaskFormViewState extends State<TaskFormView> {
     }
   }
 
+  Future<void> _showDeleteConfirmation() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Task?'),
+        content: const Text(
+          'Are you sure you want to delete this task? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      await _deleteTask();
+    }
+  }
+
+  Future<void> _deleteTask() async {
+    try {
+      final provider = Provider.of<TaskProvider>(context, listen: false);
+      await provider.deleteTask(widget.task!.id);
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        SnackbarHelper.showError(context, 'Error deleting task: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -187,6 +228,14 @@ class _TaskFormViewState extends State<TaskFormView> {
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: widget.task != null
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: _showDeleteConfirmation,
+                ),
+              ]
+            : null,
       ),
       body: Form(
         key: _formKey,
