@@ -75,7 +75,8 @@ class NaturalLanguageParser {
 
   /// Parse natural language input to extract reminder type, title, and date
   static ParsedReminder parse(String input) {
-    final lowerInput = input.toLowerCase().trim();
+    final originalInput = input.trim();
+    final lowerInput = originalInput.toLowerCase();
     
     // Determine type
     final type = _determineType(lowerInput);
@@ -86,13 +87,13 @@ class NaturalLanguageParser {
     // Extract time
     final time = _extractTime(lowerInput);
     
-    // Extract title/description
-    final title = _extractTitle(lowerInput, type);
+    // Extract title/description (preserve original casing for readability)
+    final title = _extractTitle(originalInput, type);
     
-    // Extract location (for appointments)
+    // Extract location (for appointments) from original input, but avoid time/date phrases
     final location = type == ParsedReminderType.appointment 
-        ? _extractLocation(lowerInput) 
-        : null;
+      ? _extractLocation(originalInput) 
+      : null;
     
     return ParsedReminder(
       type: type,
@@ -200,161 +201,98 @@ class NaturalLanguageParser {
   }
 
   static String? _extractTitle(String input, ParsedReminderType type) {
-    // Remove common setup phrases (be more careful to preserve words)
-    // Use word boundaries to avoid partial word matches
-    String cleaned = input
-        .replaceAll(RegExp(r'\bsetup\s+(?:a\s+)?', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\bcreate\s+(?:a\s+)?', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\badd\s+(?:a\s+)?', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\bnew\s+', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\breminder\s+for\s+(?:a\s+)?', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\bcoming\s+up\s+on\s+', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\bon\s+', caseSensitive: false), '');
-    
-    // Note: We don't remove "reminder with" here because "with" is needed for location extraction
-    
-    // Remove date patterns (e.g., "Dec 15th", "December 15")
-    cleaned = cleaned.replaceAll(
-      RegExp(r'\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?(?:\s*,\s*\d{4})?', caseSensitive: false),
-      '',
-    );
-    
-    // Remove time patterns (e.g., "at 7pm", "at 7:00 pm", "at 7:00pm")
-    cleaned = cleaned.replaceAll(
-      RegExp(r'\bat\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\b', caseSensitive: false),
-      '',
-    );
-    
-    // Remove common filler words
-    cleaned = cleaned
-        .replaceAll(RegExp(r'\bthe\b', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\ba\b', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\ban\b', caseSensitive: false), '');
-    
-    // Extract the main description based on type
-    if (type == ParsedReminderType.subscription || type == ParsedReminderType.task) {
-      // For subscriptions, look for phrases like "subscriptions renewal" or service names
-      // Try to find text that includes subscription keywords
-      for (final keyword in _subscriptionKeywords) {
-        if (cleaned.contains(keyword)) {
-          // Extract a meaningful phrase around the keyword
-          final index = cleaned.indexOf(keyword);
-          // Get context before and after the keyword
-          final beforeContext = index > 0 
-              ? cleaned.substring(0, index).trim().split(' ').take(3).join(' ')
-              : '';
-          final afterContext = (index + keyword.length) < cleaned.length
-              ? cleaned.substring(index + keyword.length).trim().split(' ').take(3).join(' ')
-              : '';
-          
-          // Combine context
-          final parts = [beforeContext, keyword, afterContext]
-              .where((p) => p.isNotEmpty)
-              .toList();
-          final extracted = parts.join(' ').trim();
-          
-          if (extracted.isNotEmpty) {
-            return _cleanTitle(extracted);
-          }
-        }
-      }
-    } else if (type == ParsedReminderType.appointment) {
-      // For appointments, look for phrases like "doctor appointment" or "meeting with X"
-      // Remove "appointment" keyword if it appears, and extract the meaningful part
-      String appointmentTitle = cleaned;
-      
-      // Remove standalone "appointment" or "appointments" word (but preserve context)
-      // Pattern: "appointment reminder" -> "reminder", "appointment with X" -> "with X"
-      appointmentTitle = appointmentTitle.replaceAll(
-        RegExp(r'\bappointments?\s+', caseSensitive: false),
-        '',
-      );
-      
-      // Also remove "reminder" if it's still there
-      appointmentTitle = appointmentTitle.replaceAll(
-        RegExp(r'\breminder\s+', caseSensitive: false),
-        '',
-      );
-      
-      // Try to find other appointment keywords and extract context
-      for (final keyword in _appointmentKeywords) {
-        if (keyword != 'appointment' && keyword != 'appointments' && appointmentTitle.contains(keyword)) {
-          // Extract a meaningful phrase around the keyword
-          final index = appointmentTitle.indexOf(keyword);
-          // Get context before and after the keyword
-          final beforeContext = index > 0 
-              ? appointmentTitle.substring(0, index).trim().split(' ').take(3).join(' ')
-              : '';
-          final afterContext = (index + keyword.length) < appointmentTitle.length
-              ? appointmentTitle.substring(index + keyword.length).trim().split(' ').take(3).join(' ')
-              : '';
-          
-          // Combine context
-          final parts = [beforeContext, keyword, afterContext]
-              .where((p) => p.isNotEmpty)
-              .toList();
-          final extracted = parts.join(' ').trim();
-          
-          if (extracted.isNotEmpty) {
-            return _cleanTitle(extracted);
-          }
-        }
-      }
-      
-      // If no keyword found, use the cleaned appointment title
-      appointmentTitle = appointmentTitle.trim();
-      if (appointmentTitle.isNotEmpty) {
-        return _cleanTitle(appointmentTitle);
+    // Start from original input; we'll strip out time/date and filler phrases
+    String cleaned = input;
+
+    // Remove common setup/action phrases
+    final setupPhrases = <RegExp>[
+      RegExp(r'\bsetup\s+(?:an?\s+)?', caseSensitive: false),
+      RegExp(r'\bcreate\s+(?:an?\s+)?', caseSensitive: false),
+      RegExp(r'\badd\s+(?:an?\s+)?', caseSensitive: false),
+      RegExp(r'\bnew\s+', caseSensitive: false),
+      RegExp(r'\breminder\s+for\s+(?:an?\s+)?', caseSensitive: false),
+    ];
+    for (final r in setupPhrases) {
+      cleaned = cleaned.replaceAll(r, '');
+    }
+
+    // Remove explicit appointment filler/action phrases first (order matters)
+    final appointmentFiller = <RegExp>[
+      RegExp(r'\bappointment\s+to\s+meet\b', caseSensitive: false),
+      RegExp(r'\bappointment\s+with\b', caseSensitive: false),
+      RegExp(r'\bmeeting\s+with\b', caseSensitive: false),
+      RegExp(r'\bto\s+meet\b', caseSensitive: false),
+      RegExp(r'\bwith\b', caseSensitive: false),
+      RegExp(r'\bappointments?\b', caseSensitive: false),
+    ];
+
+    // Strip date and time phrases to avoid them polluting title
+    cleaned = _stripDateTimePhrases(cleaned);
+
+    if (type == ParsedReminderType.appointment) {
+      for (final r in appointmentFiller) {
+        cleaned = cleaned.replaceAll(r, ' ');
       }
     } else if (type == ParsedReminderType.task) {
-      // For tasks, remove task-related keywords and extract the meaningful part
-      String taskTitle = cleaned;
-      
-      // Remove standalone "task", "tasks", "todo", "reminder" words
-      taskTitle = taskTitle.replaceAll(RegExp(r'\btasks?\s+', caseSensitive: false), '');
-      taskTitle = taskTitle.replaceAll(RegExp(r'\btodos?\s+', caseSensitive: false), '');
-      taskTitle = taskTitle.replaceAll(RegExp(r'\bto-do\s+', caseSensitive: false), '');
-      taskTitle = taskTitle.replaceAll(RegExp(r'\bto\s+do\s+', caseSensitive: false), '');
-      taskTitle = taskTitle.replaceAll(RegExp(r'\breminder\s+', caseSensitive: false), '');
-      
-      // Try to find other task keywords and extract context
-      for (final keyword in _taskKeywords) {
-        if (keyword != 'task' && keyword != 'tasks' && keyword != 'todo' && 
-            keyword != 'todos' && keyword != 'to-do' && keyword != 'to do' && 
-            keyword != 'reminder' && taskTitle.contains(keyword)) {
-          // Extract a meaningful phrase around the keyword
-          final index = taskTitle.indexOf(keyword);
-          final beforeContext = index > 0 
-              ? taskTitle.substring(0, index).trim().split(' ').take(3).join(' ')
-              : '';
-          final afterContext = (index + keyword.length) < taskTitle.length
-              ? taskTitle.substring(index + keyword.length).trim().split(' ').take(3).join(' ')
-              : '';
-          
-          final parts = [beforeContext, keyword, afterContext]
-              .where((p) => p.isNotEmpty)
-              .toList();
-          final extracted = parts.join(' ').trim();
-          
-          if (extracted.isNotEmpty) {
-            return _cleanTitle(extracted);
-          }
-        }
-      }
-      
-      // If no keyword found, use the cleaned task title
-      taskTitle = taskTitle.trim();
-      if (taskTitle.isNotEmpty) {
-        return _cleanTitle(taskTitle);
-      }
+      cleaned = cleaned
+          .replaceAll(RegExp(r'\btasks?\b', caseSensitive: false), ' ')
+          .replaceAll(RegExp(r'\btodos?\b', caseSensitive: false), ' ')
+          .replaceAll(RegExp(r'\bto-?do\b', caseSensitive: false), ' ')
+          .replaceAll(RegExp(r'\breminder\b', caseSensitive: false), ' ');
+    } else if (type == ParsedReminderType.subscription) {
+      // Light cleanup for subscriptions
+      cleaned = cleaned.replaceAll(RegExp(r'\bsubscriptions?\b', caseSensitive: false), ' ');
+      cleaned = cleaned.replaceAll(RegExp(r'\brenew(al)?\b', caseSensitive: false), ' ');
+      cleaned = cleaned.replaceAll(RegExp(r'\bbilling\b', caseSensitive: false), ' ');
+      cleaned = cleaned.replaceAll(RegExp(r'\bpayment\b', caseSensitive: false), ' ');
     }
-    
-    // Fallback: use the cleaned input (first 50 chars)
-    final title = cleaned.trim();
-    if (title.length > 50) {
-      return title.substring(0, 50).trim();
+
+    // Final common fillers
+    cleaned = cleaned
+        .replaceAll(RegExp(r'\bon\b', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\bat\b', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\bin\b', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\bthe\b', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\ban?\b', caseSensitive: false), ' ');
+
+    // Normalize whitespace and punctuation
+    cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+    cleaned = cleaned.replaceAll(RegExp(r'^[:,-]+|[:,-]+$'), '').trim();
+
+    if (cleaned.isEmpty) return null;
+
+    // For appointments, optionally prepend a verb for consistency
+    if (type == ParsedReminderType.appointment) {
+      final titled = _titleCase(cleaned);
+      return titled.startsWith(RegExp(r'Meet\b')) ? titled : 'Meet $titled';
     }
-    return title.isNotEmpty ? title : null;
+
+    return _cleanTitle(cleaned);
+  }
+
+  static String _stripDateTimePhrases(String input) {
+    String s = input;
+
+    // Month and date patterns
+    final monthDay = RegExp(
+      r'\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?(?:\s*,\s*\d{4})?\b',
+      caseSensitive: false,
+    );
+    final dayMonth = RegExp(
+      r'\b\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*(?:\s*,\s*\d{4})?\b',
+      caseSensitive: false,
+    );
+    // Relative date words
+    final relatives = RegExp(r'\b(tomorrow|today|next\s+(week|month))\b', caseSensitive: false);
+    // Time expressions
+    final timeAt = RegExp(r'\bat\s+\d{1,2}(?::\d{2})?\s*(am|pm)\b', caseSensitive: false);
+    final timeStandalone = RegExp(r'\b\d{1,2}(:\d{2})?\s*(am|pm)\b', caseSensitive: false);
+
+    for (final r in [monthDay, dayMonth, relatives, timeAt, timeStandalone]) {
+      s = s.replaceAll(r, ' ');
+    }
+
+    return s.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   static TimeOfDay? _extractTime(String input) {
@@ -389,29 +327,71 @@ class NaturalLanguageParser {
   }
 
   static String? _extractLocation(String input) {
-    // Look for location indicators like "at", "with", "in"
-    final locationPatterns = [
-      RegExp(r'with\s+([^,]+?)(?:\s+coming|\s+on|$)', caseSensitive: false),
-      RegExp(r'at\s+([^,]+?)(?:\s+coming|\s+on|$)', caseSensitive: false),
-      RegExp(r'in\s+([^,]+?)(?:\s+coming|\s+on|$)', caseSensitive: false),
+    // Only treat explicit location keywords as locations
+    // and ensure captured text is not a time/date phrase
+    final candidates = <RegExp>[
+      RegExp(r'\bat\s+([^,]+?)(?=\s+(?:on|at|in|@)\b|\s+coming\b|\s*$)', caseSensitive: false),
+      RegExp(r'\bin\s+([^,]+?)(?=\s+(?:on|at|in|@)\b|\s+coming\b|\s*$)', caseSensitive: false),
+      RegExp(r'(?:^|\s)@\s*([^,]+?)(?=\s+(?:on|at|in|@)\b|\s+coming\b|\s*$)', caseSensitive: false),
     ];
-    
-    for (final pattern in locationPatterns) {
-      final match = pattern.firstMatch(input);
-      if (match != null) {
-        final location = match.group(1)?.trim();
-        if (location != null && location.isNotEmpty && location.length < 100) {
-          return location;
+
+    for (final pattern in candidates) {
+      final matches = pattern.allMatches(input).toList();
+      for (final match in matches) {
+        final phrase = match.group(1)?.trim();
+        if (phrase == null || phrase.isEmpty) continue;
+
+        // If the phrase is a known date/time expression, ignore as location
+        if (_isDateOrTimePhrase(phrase)) {
+          continue;
+        }
+
+        // Otherwise treat as location
+        var loc = phrase.replaceAll(RegExp(r'\s+'), ' ').trim();
+        // Skip obvious handle/email-like tokens when no spaces
+        if (RegExp(r'^[\w.@-]+$').hasMatch(loc) && !loc.contains(' ')) {
+          continue;
+        }
+        // Remove leading articles for cleanliness
+        loc = loc.replaceFirst(RegExp(r'^(the|a|an)\s+', caseSensitive: false), '');
+        if (loc.isNotEmpty && loc.length < 100) {
+          return loc;
         }
       }
     }
-    
+
     return null;
+  }
+
+  static bool _isDateOrTimePhrase(String phrase) {
+    final p = phrase.trim();
+    // Time patterns
+    if (RegExp(r'^\d{1,2}(:\d{2})?\s*(am|pm)$', caseSensitive: false).hasMatch(p)) return true;
+    if (RegExp(r'^at\s+\d{1,2}(:\d{2})?\s*(am|pm)$', caseSensitive: false).hasMatch(p)) return true;
+    if (RegExp(r'^@\s*\d{1,2}(:\d{2})?\s*(am|pm)$', caseSensitive: false).hasMatch(p)) return true;
+    // Relative day words
+    if (RegExp(r'\b(tomorrow|today|tonight|next\s+(week|month))\b', caseSensitive: false).hasMatch(p)) return true;
+    // Parts of day as time-like phrases
+    if (RegExp(r'\b(morning|afternoon|evening|noon|midnight)\b', caseSensitive: false).hasMatch(p)) return true;
+    // Month-date combos
+    if (RegExp(r'(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?', caseSensitive: false).hasMatch(p)) return true;
+    if (RegExp(r'\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*', caseSensitive: false).hasMatch(p)) return true;
+    return false;
   }
 
   static String _cleanTitle(String title) {
     return title
         .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static String _titleCase(String input) {
+    final words = input.split(RegExp(r'\s+'));
+    return words
+        .map((w) => w.isEmpty
+            ? w
+            : (w[0].toUpperCase() + (w.length > 1 ? w.substring(1) : '')))
+        .join(' ')
         .trim();
   }
 }
