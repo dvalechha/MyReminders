@@ -15,6 +15,21 @@ class AppointmentsListView extends StatefulWidget {
 
 class _AppointmentsListViewState extends State<AppointmentsListView> {
   String _searchText = '';
+  bool _isInit = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // Refresh data every time the view becomes visible
+    if (_isInit) {
+      // First time - let provider handle initial load
+      _isInit = false;
+    } else {
+      // Subsequent times - refresh data from the provider
+      Provider.of<AppointmentProvider>(context, listen: false).loadAppointments();
+    }
+  }
 
   List<Appointment> _filterAppointments(
       List<Appointment> appointments, String searchText) {

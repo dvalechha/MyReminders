@@ -32,7 +32,6 @@ class LocalCacheService {
     await db.delete('subscriptions');
     await db.delete('appointments');
     await db.delete('tasks');
-    await db.delete('custom_reminders');
   }
 
   /// Cancel all scheduled notifications

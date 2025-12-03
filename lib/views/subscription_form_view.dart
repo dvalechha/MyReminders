@@ -6,7 +6,6 @@ import '../models/subscription.dart';
 import '../providers/subscription_provider.dart';
 import '../services/notification_service.dart';
 import '../utils/snackbar.dart';
-import 'custom_reminder_modal.dart';
 
 class SubscriptionFormView extends StatefulWidget {
   final Subscription? subscription;
@@ -168,32 +167,34 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
   }
 
   Future<void> _selectCustomReminder() async {
-    final result = await Navigator.push<int>(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CustomReminderModal(
-          initialDays: _customReminderDays > 0 ? _customReminderDays : 1,
-        ),
-      ),
-    );
+    // TODO: Re-implement custom reminder modal if feature is brought back
+    debugPrint("Custom reminder modal has been removed.");
+    // final result = await Navigator.push<int>(
+    //   context,
+    //   MaterialPageRoute(
+    //     builder: (context) => CustomReminderModal(
+    //       initialDays: _customReminderDays > 0 ? _customReminderDays : 1,
+    //     ),
+    //   ),
+    // );
 
-    if (result != null) {
-      setState(() {
-        _customReminderDays = result;
-        if (result < 1 || result > 29) {
-          _selectedReminder = ReminderTime.none;
-          _customReminderDays = 0;
-        }
-      });
-    } else {
-      // User cancelled - reset if no valid days
-      if (_customReminderDays < 1 || _customReminderDays > 29) {
-        setState(() {
-          _selectedReminder = ReminderTime.none;
-          _customReminderDays = 0;
-        });
-      }
-    }
+    // if (result != null) {
+    //   setState(() {
+    //     _customReminderDays = result;
+    //     if (result < 1 || result > 29) {
+    //       _selectedReminder = ReminderTime.none;
+    //       _customReminderDays = 0;
+    //     }
+    //   });
+    // } else {
+    //   // User cancelled - reset if no valid days
+    //   if (_customReminderDays < 1 || _customReminderDays > 29) {
+    //     setState(() {
+    //       _selectedReminder = ReminderTime.none;
+    //       _customReminderDays = 0;
+    //     });
+    //   }
+    // }
   }
 
   Future<void> _saveSubscription() async {
