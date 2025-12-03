@@ -1,48 +1,64 @@
-**Title:** Critical Bug Fix: List Views Must Fetch Fresh Data on Every Load
+**Title:** Implement a Dynamic "Today's Snapshot" Dashboard on the Welcome Screen
 
 **Context:**
-You are AntiGravity, an expert Flutter/Dart developer. A critical bug persists in the application: the list views for Tasks, Subscriptions, and Appointments are displaying stale data. They fetch data from the Supabase backend only once and then show a cached version from the in-memory provider. This means recent changes (creations, updates, or deletions) are not visible until the app is fully restarted.
+You are an expert Flutter/Dart developer. Your task is to transform the application's welcome screen from a simple input page into a dynamic, context-aware dashboard. This will provide immediate value to the user upon opening the app and improve engagement.
 
-The goal is to permanently fix this by ensuring these list views **always** present the most current data from the database whenever the user visits them.
+The screen should have two states:
+1.  **Default State (No Input):** Display a "Today's Snapshot" widget summarizing the user's most important upcoming items.
+2.  **Active State (User Typing):** When the user starts typing in the Omnibox, the snapshot will be replaced by the existing animation/preview box.
 
 **Affected Files:**
-*   **Views (UI):**
-    *   `lib/views/tasks_list_view.dart`
-    *   `lib/views/subscriptions_list_view.dart`
-    *   `lib/views/appointments_list_view.dart`
-*   **Providers (State Management & Business Logic):**
-    *   `lib/providers/task_provider.dart`
-    *   `lib/providers/subscription_provider.dart`
-    *   `lib/providers/appointment_provider.dart`
+*   `lib/views/welcome_view.dart` (Major modifications)
+*   `lib/providers/subscription_provider.dart` (Data access)
+*   `lib/providers/appointment_provider.dart` (Data access)
+*   `lib/providers/task_provider.dart` (Data access)
+
+**New Files to Create:**
+*   `lib/widgets/todays_snapshot_view.dart` (The new summary card widget)
+*   `lib/views/unified_agenda_view.dart` (A new screen for the full agenda)
 
 **Instructions:**
 
-Your task is to modify the data fetching logic to guarantee a data refresh from the Supabase backend every single time a list view becomes visible to the user.
+**Part 1: Create the Unified Agenda View**
 
-1.  **Modify Provider Fetch Logic (The Core Problem):**
-    *   In each of the three providers (`..._provider.dart`), locate the data fetching method (e.g., `fetchTasks`, `fetchSubscriptions`).
-    *   These methods likely contain a guard clause that prevents re-fetching if the local list is already populated (e.g., `if (_tasks.isNotEmpty) return;`).
-    *   **You must remove this guard clause.** The method should **always** proceed to call the repository and fetch the latest data from Supabase.
-    *   At the beginning of the fetch method, ensure you clear the existing in-memory list (e.g., `_tasks.clear();`). This is crucial to prevent duplicating data.
+1.  Create a new file: `lib/views/unified_agenda_view.dart`.
+2.  Implement a `StatefulWidget` called `UnifiedAgendaView`.
+3.  The view should have an `AppBar` titled "Upcoming Agenda".
+4.  In its state, fetch all data from the `SubscriptionProvider`, `AppointmentProvider`, and `TaskProvider`.
+5.  Combine the items from all three sources into a single list.
+6.  Sort this master list chronologically based on the relevant date (renewal date, appointment time, due date).
+7.  Display the sorted items in a `ListView`, where each item is styled distinctly based on its type (e.g., using different icons and text formatting for subscriptions, appointments, and tasks).
 
-2.  **Ensure Fetch is Called on View Entry:**
-    *   In each of the three list views (`..._list_view.dart`), ensure the data fetching method from the provider is being called when the view is initialized. The best practice for this is within the `initState` method.
-    *   The call should look like this, using `listen: false`:
-        ```dart
-        @override
-        void initState() {
-          super.initState();
-          // Use a PostFrameCallback to ensure the context is available
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            Provider.of<TaskProvider>(context, listen: false).fetchTasks();
-          });
-        }
-        ```
-    *   By fixing the provider (Step 1), this call will now correctly refresh the data every time the view is created and loaded.
+**Part 2: Create the "Today's Snapshot" Widget**
+
+1.  Create a new file: `lib/widgets/todays_snapshot_view.dart`.
+2.  Implement a `StatelessWidget` called `TodaysSnapshotView`.
+3.  The widget should accept lists of subscriptions, appointments, and tasks as parameters.
+4.  Implement logic to determine the most relevant items to display:
+    *   **Up Next:** The soonest upcoming appointment for today.
+    *   **Due Today:** The most important task due today.
+    *   **Renewing Soon:** The next subscription that is renewing (today or tomorrow).
+5.  Design the widget as a card (e.g., using `Card` or a `Container` with decoration).
+6.  Display the selected items with appropriate icons (e.g., `Icons.calendar_today`, `Icons.check_box_outline_blank`, `Icons.autorenew`).
+7.  Add a "View Full Agenda ->" `TextButton` or similar interactive element. Tapping anywhere on the card should navigate to the `UnifiedAgendaView`.
+
+**Part 3: Update the Welcome View**
+
+1.  Open `lib/views/welcome_view.dart`.
+2.  In the `_WelcomeViewState`, add a listener to the `_omniboxController` to detect when the text is empty or not. A boolean state variable like `_isTyping` should be updated in `setState`.
+3.  In the `build` method, locate the `AnimatedContainer` that currently holds the `PulsingGradientPlaceholder` (the animation box).
+4.  Replace this static implementation with an `AnimatedSwitcher`.
+    *   **`duration`:** Set a smooth duration, like `Duration(milliseconds: 300)`.
+    *   **`child`:** Use a condition based on `_isTyping` (or `_omniboxController.text.isEmpty`).
+        *   If the user **is typing**, the child should be the `PulsingGradientPlaceholder`.
+        *   If the user **is not typing**, the child should be your new `TodaysSnapshotView` widget. You will need to fetch the data from the providers to pass into it.
+5.  Ensure the transition between the two widgets is a fade (the default for `AnimatedSwitcher`).
 
 **Summary of Desired User Experience:**
 
-*   **Current (Buggy) Behavior:** A user edits a task, navigates back to the `TasksListView`, and the old, unedited task information is still displayed.
-*   **Target (Correct) Behavior:** A user edits a task, navigates back to the `TasksListView`, and the view immediately displays the updated task information, reflecting the changes made. This correct behavior must apply to all create, update, and delete operations across all three modules.
+*   **On App Launch:** The user sees the Omnibox and the "Today's Snapshot" card, which gives them an instant, glanceable summary of their day.
+*   **On Tapping the Snapshot:** The user is navigated to the `UnifiedAgendaView`, where they can see all their upcoming items in a sorted list.
+*   **On Typing in Omnibox:** The "Today's Snapshot" card smoothly fades out and is replaced by the pulsing animation box, which reflects the text being typed.
+*   **On Clearing Omnibox:** The animation box fades out and is replaced by the "Today's Snapshot" card.
 
-Please implement this data refresh logic consistently across Tasks, Subscriptions, and Appointments to resolve this critical stale data issue.
+Please implement this feature with clean, well-structured, and production-ready Dart code.

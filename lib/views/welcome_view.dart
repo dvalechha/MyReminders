@@ -11,6 +11,7 @@ import '../widgets/help_suggestion_view.dart';
 import '../utils/natural_language_parser.dart';
 import '../services/intent_parser_service.dart';
 import '../models/parsed_intent.dart';
+import '../models/subscription.dart';
 import 'subscription_form_view.dart';
 import 'appointment_form_view.dart';
 import 'task_form_view.dart';
@@ -145,6 +146,8 @@ class _WelcomeViewState extends State<WelcomeView> {
           builder: (context) => SubscriptionFormView(
             initialServiceName: parsed.title ?? 'New Subscription',
             initialRenewalDate: parsed.date ?? DateTime.now().add(const Duration(days: 30)),
+            initialAmount: parsed.amount,
+            initialCurrency: _mapCurrencyCode(parsed.currencyCode),
             initialNotes: query,
           ),
         ),
@@ -338,6 +341,8 @@ class _WelcomeViewState extends State<WelcomeView> {
           builder: (context) => SubscriptionFormView(
             initialServiceName: parsed.title ?? 'New Subscription',
             initialRenewalDate: parsed.date ?? DateTime.now().add(const Duration(days: 30)),
+            initialAmount: parsed.amount,
+            initialCurrency: _mapCurrencyCode(parsed.currencyCode),
             initialNotes: queryToUse, // Store the original query as notes for reference
           ),
         ),
@@ -451,6 +456,22 @@ class _WelcomeViewState extends State<WelcomeView> {
       // Unknown type - Help view will already be displayed if parsing failed
       // No need to show a SnackBar, the Help view provides better guidance
       debugPrint('Could not determine reminder type from: $queryToUse');
+    }
+  }
+
+  // Map parser currency code string to Subscription Currency enum
+  Currency? _mapCurrencyCode(String? code) {
+    switch (code?.toLowerCase()) {
+      case 'usd':
+        return Currency.usd;
+      case 'cad':
+        return Currency.cad;
+      case 'eur':
+        return Currency.eur;
+      case 'inr':
+        return Currency.inr;
+      default:
+        return null;
     }
   }
 

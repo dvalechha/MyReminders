@@ -13,6 +13,8 @@ class ParsedReminder {
   final DateTime? date;
   final String? location;
   final TimeOfDay? time;
+  final double? amount; // For subscriptions only
+  final String? currencyCode; // For subscriptions only (usd/cad/eur/inr)
 
   ParsedReminder({
     required this.type,
@@ -20,6 +22,8 @@ class ParsedReminder {
     this.date,
     this.location,
     this.time,
+    this.amount,
+    this.currencyCode,
   });
 }
 
@@ -95,12 +99,23 @@ class NaturalLanguageParser {
       ? _extractLocation(originalInput) 
       : null;
     
+    // Extract amount and currency for subscriptions
+    double? amount;
+    String? currencyCode;
+    if (type == ParsedReminderType.subscription) {
+      final amountCurrency = _extractAmountAndCurrency(originalInput);
+      amount = amountCurrency.$1;
+      currencyCode = amountCurrency.$2;
+    }
+
     return ParsedReminder(
       type: type,
       title: title,
       date: date,
       location: location,
       time: time,
+      amount: amount,
+      currencyCode: currencyCode,
     );
   }
 
@@ -229,6 +244,12 @@ class NaturalLanguageParser {
     // Strip date and time phrases to avoid them polluting title
     cleaned = _stripDateTimePhrases(cleaned);
 
+    // Remove trailing location phrases from title (e.g., "at his clinic", "in his clinic", "@ his clinic")
+    if (type == ParsedReminderType.appointment) {
+      cleaned = cleaned.replaceAll(RegExp(r'\s+(?:at|in)\s+[^,]+$', caseSensitive: false), '');
+      cleaned = cleaned.replaceAll(RegExp(r'\s+@\s+[^,]+$', caseSensitive: false), '');
+    }
+
     if (type == ParsedReminderType.appointment) {
       for (final r in appointmentFiller) {
         cleaned = cleaned.replaceAll(r, ' ');
@@ -245,6 +266,12 @@ class NaturalLanguageParser {
       cleaned = cleaned.replaceAll(RegExp(r'\brenew(al)?\b', caseSensitive: false), ' ');
       cleaned = cleaned.replaceAll(RegExp(r'\bbilling\b', caseSensitive: false), ' ');
       cleaned = cleaned.replaceAll(RegExp(r'\bpayment\b', caseSensitive: false), ' ');
+      cleaned = cleaned.replaceAll(RegExp(r'\bfor\b', caseSensitive: false), ' ');
+      // Remove currency/amount tokens to avoid polluting title
+      cleaned = cleaned.replaceAll(RegExp(r'\$\s*\d+(?:\.\d{1,2})?', caseSensitive: false), ' ');
+      cleaned = cleaned.replaceAll(RegExp(r'\b\d+(?:\.\d{1,2})?\s*(usd|cad|eur|inr)\b', caseSensitive: false), ' ');
+      // Remove standalone currency codes that might trail (e.g., 'CAD')
+      cleaned = cleaned.replaceAll(RegExp(r'\b(usd|cad|eur|inr)\b', caseSensitive: false), ' ');
     }
 
     // Final common fillers
@@ -393,6 +420,29 @@ class NaturalLanguageParser {
             : (w[0].toUpperCase() + (w.length > 1 ? w.substring(1) : '')))
         .join(' ')
         .trim();
+  }
+
+  static (double?, String?) _extractAmountAndCurrency(String input) {
+    // Patterns: "20 USD", "20.50 cad", "EUR 19.99"
+    final amountThenCode = RegExp(r'\b(\d+(?:\.\d{1,2})?)\s*(usd|cad|eur|inr)\b', caseSensitive: false).firstMatch(input);
+    if (amountThenCode != null) {
+      final amt = double.tryParse(amountThenCode.group(1)!);
+      final code = amountThenCode.group(2)!.toLowerCase();
+      return (amt, code);
+    }
+    final codeThenAmount = RegExp(r'\b(usd|cad|eur|inr)\s*(\d+(?:\.\d{1,2})?)\b', caseSensitive: false).firstMatch(input);
+    if (codeThenAmount != null) {
+      final code = codeThenAmount.group(1)!.toLowerCase();
+      final amt = double.tryParse(codeThenAmount.group(2)!);
+      return (amt, code);
+    }
+    // Dollar-prefixed: "$ 20" or "$20.00"; assume USD
+    final dollarPrefixed = RegExp(r'\$\s*(\d+(?:\.\d{1,2})?)').firstMatch(input);
+    if (dollarPrefixed != null) {
+      final amt = double.tryParse(dollarPrefixed.group(1)!);
+      return (amt, 'usd');
+    }
+    return (null, null);
   }
 }
 
