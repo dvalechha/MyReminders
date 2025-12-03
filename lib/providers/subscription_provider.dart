@@ -94,8 +94,11 @@ class SubscriptionProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
-      // Save to local SQLite first (for offline support)
-      await _dbHelper.insertSubscription(updatedSubscription);
+      // Only save to local SQLite if user is not authenticated (offline mode)
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) {
+        await _dbHelper.insertSubscription(updatedSubscription);
+      }
 
       // Also save to Supabase if user is authenticated
       try {
@@ -184,13 +187,10 @@ class SubscriptionProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
-      // Update local SQLite first
-      await _dbHelper.updateSubscription(updatedSubscription);
-
-      // Also update in Supabase if user is authenticated
-      try {
-        final user = Supabase.instance.client.auth.currentUser;
-        if (user != null) {
+      // Only update in Supabase if user is authenticated, otherwise use local SQLite
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
           // Get category in Supabase by name
           final categoryName = updatedSubscription.category.value;
           var category = await _categoryRepository.getByName(categoryName);
@@ -225,11 +225,14 @@ class SubscriptionProvider with ChangeNotifier {
             await _supabaseRepository.update(updatedSubscription.id, supabaseData);
             debugPrint('Subscription updated in Supabase: ${updatedSubscription.serviceName}');
           }
+        } catch (e) {
+          // Log error but don't fail - subscription is already updated locally
+          debugPrint('Warning: Failed to update subscription in Supabase: $e');
+          throw e; // Rethrow to indicate failure
         }
-      } catch (e) {
-        // Log error but don't fail - subscription is already updated locally
-        debugPrint('Warning: Failed to update subscription in Supabase: $e');
-        debugPrint('Subscription updated locally only. Will sync when connection is available.');
+      } else {
+        // User not authenticated, update local SQLite only
+        await _dbHelper.updateSubscription(updatedSubscription);
       }
 
       // Schedule notification if reminder is set
@@ -257,26 +260,36 @@ class SubscriptionProvider with ChangeNotifier {
   // Delete subscription
   Future<void> deleteSubscription(String id) async {
     try {
-      // Get subscription to cancel notification
-      final subscription = await _dbHelper.getSubscriptionById(id);
+      // Get subscription to cancel notification (check both sources)
+      final user = Supabase.instance.client.auth.currentUser;
+      Subscription? subscription;
+      
+      if (user != null) {
+        // When authenticated, fetch from current in-memory list
+        subscription = _subscriptions.firstWhere(
+          (s) => s.id == id,
+          orElse: () => throw Exception('Subscription not found'),
+        );
+      } else {
+        subscription = await _dbHelper.getSubscriptionById(id);
+      }
+      
       if (subscription != null && subscription.notificationId != null) {
         await _notificationService.cancelReminder(subscription.notificationId!);
       }
 
-      // Delete from local SQLite first
-      await _dbHelper.deleteSubscription(id);
-
-      // Also delete from Supabase if user is authenticated
-      try {
-        final user = Supabase.instance.client.auth.currentUser;
-        if (user != null) {
+      // Delete from appropriate source based on auth status
+      if (user != null) {
+        try {
           await _supabaseRepository.delete(id);
           debugPrint('Subscription deleted from Supabase: ${subscription?.serviceName ?? "Unknown"}');
+        } catch (e) {
+          debugPrint('Warning: Failed to delete subscription from Supabase: $e');
+          throw e; // Rethrow to indicate failure
         }
-      } catch (e) {
-        // Log error but don't fail - subscription is already deleted locally
-        debugPrint('Warning: Failed to delete subscription from Supabase: $e');
-        debugPrint('Subscription deleted locally only. Will sync when connection is available.');
+      } else {
+        // User not authenticated, delete from local SQLite only
+        await _dbHelper.deleteSubscription(id);
       }
 
       await loadSubscriptions();
