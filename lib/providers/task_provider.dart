@@ -1,12 +1,17 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/task.dart';
 import '../models/appointment.dart';
 import '../database/database_helper.dart';
 import '../services/notification_service.dart';
+import '../repositories/task_repository.dart';
+import '../repositories/category_repository.dart';
 
 class TaskProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final NotificationService _notificationService = NotificationService.instance;
+  final TaskRepository _supabaseRepository = TaskRepository();
+  final CategoryRepository _categoryRepository = CategoryRepository();
 
   List<Task> _tasks = [];
   bool _isLoading = false;
@@ -77,7 +82,38 @@ class TaskProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
+      // Save to local SQLite first (for offline support)
       await _dbHelper.insertTask(updatedTask);
+
+      // Also save to Supabase if user is authenticated
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          // Get category ID if category is specified
+          String? categoryId;
+          if (task.category != null && task.category!.isNotEmpty) {
+            final category = await _categoryRepository.getByName(task.category!);
+            categoryId = category?.id;
+            
+            if (categoryId == null) {
+              debugPrint('Warning: Category "${task.category}" not found in Supabase.');
+            }
+          }
+
+          // Convert to Supabase format and save
+          final supabaseData = updatedTask.toSupabaseMap(
+            userId: user.id,
+            categoryId: categoryId,
+          );
+          
+          await _supabaseRepository.create(supabaseData);
+          debugPrint('Task saved to Supabase: ${updatedTask.title}');
+        }
+      } catch (e) {
+        // Log error but don't fail - task is already saved locally
+        debugPrint('Warning: Failed to save task to Supabase: $e');
+        debugPrint('Task saved locally only. Will sync when connection is available.');
+      }
 
       if (updatedTask.reminderOffset != ReminderOffset.none &&
           updatedTask.dueDate != null &&
@@ -109,7 +145,38 @@ class TaskProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
+      // Update local SQLite first
       await _dbHelper.updateTask(updatedTask);
+
+      // Also update in Supabase if user is authenticated
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          // Get category ID if category is specified
+          String? categoryId;
+          if (task.category != null && task.category!.isNotEmpty) {
+            final category = await _categoryRepository.getByName(task.category!);
+            categoryId = category?.id;
+            
+            if (categoryId == null) {
+              debugPrint('Warning: Category "${task.category}" not found in Supabase.');
+            }
+          }
+
+          // Convert to Supabase format and update
+          final supabaseData = updatedTask.toSupabaseMap(
+            userId: user.id,
+            categoryId: categoryId,
+          );
+          
+          await _supabaseRepository.update(updatedTask.id, supabaseData);
+          debugPrint('Task updated in Supabase: ${updatedTask.title}');
+        }
+      } catch (e) {
+        // Log error but don't fail - task is already updated locally
+        debugPrint('Warning: Failed to update task in Supabase: $e');
+        debugPrint('Task updated locally only. Will sync when connection is available.');
+      }
 
       if (updatedTask.reminderOffset != ReminderOffset.none &&
           updatedTask.dueDate != null &&
@@ -133,7 +200,22 @@ class TaskProvider with ChangeNotifier {
         await _notificationService.cancelReminder(task.notificationId!);
       }
 
+      // Delete from local SQLite first
       await _dbHelper.deleteTask(id);
+
+      // Also delete from Supabase if user is authenticated
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          await _supabaseRepository.delete(id);
+          debugPrint('Task deleted from Supabase: ${task?.title ?? "Unknown"}');
+        }
+      } catch (e) {
+        // Log error but don't fail - task is already deleted locally
+        debugPrint('Warning: Failed to delete task from Supabase: $e');
+        debugPrint('Task deleted locally only. Will sync when connection is available.');
+      }
+
       await loadTasks();
     } catch (e) {
       print('Error deleting task: $e');

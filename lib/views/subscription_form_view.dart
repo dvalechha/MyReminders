@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../models/subscription.dart';
 import '../providers/subscription_provider.dart';
 import '../services/notification_service.dart';
+import '../utils/snackbar.dart';
 import 'custom_reminder_modal.dart';
 
 class SubscriptionFormView extends StatefulWidget {
@@ -63,6 +64,15 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
   void initState() {
     super.initState();
     _paymentMethodController.text = _paymentPrefix;
+    
+    // Add listeners to update button state when fields change
+    _serviceNameController.addListener(() {
+      setState(() {});
+    });
+    _amountController.addListener(() {
+      setState(() {});
+    });
+    
     _checkNotificationPermission();
     if (widget.subscription != null) {
       _loadSubscriptionData();
@@ -231,6 +241,46 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
     }
   }
 
+  Future<void> _showDeleteConfirmation() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Subscription?'),
+        content: const Text(
+          'Are you sure you want to delete this subscription? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      await _deleteSubscription();
+    }
+  }
+
+  Future<void> _deleteSubscription() async {
+    try {
+      final provider = Provider.of<SubscriptionProvider>(context, listen: false);
+      await provider.deleteSubscription(widget.subscription!.id);
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        SnackbarHelper.showError(context, 'Error deleting subscription: $e');
+      }
+    }
+  }
+
   Widget _buildRequiredLabel(String text) {
     return Row(
       children: [
@@ -264,6 +314,14 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: widget.subscription != null
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: _showDeleteConfirmation,
+                ),
+              ]
+            : null,
       ),
       body: Form(
         key: _formKey,

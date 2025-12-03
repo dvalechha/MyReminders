@@ -154,7 +154,53 @@ class SubscriptionProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
+      // Update local SQLite first
       await _dbHelper.updateSubscription(updatedSubscription);
+
+      // Also update in Supabase if user is authenticated
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          // Get category in Supabase by name
+          final categoryName = updatedSubscription.category.value;
+          var category = await _categoryRepository.getByName(categoryName);
+          
+          // If category doesn't exist, try to get "Other" as fallback
+          String? categoryId = category?.id;
+          if (categoryId == null) {
+            final defaultCategory = await _categoryRepository.getByName('Other');
+            categoryId = defaultCategory?.id;
+          }
+          
+          if (categoryId == null) {
+            // Try to get any category as last resort
+            final allCategories = await _categoryRepository.getAll();
+            if (allCategories.isNotEmpty) {
+              categoryId = allCategories.first.id;
+              debugPrint('Warning: Category "$categoryName" not found. Using "${allCategories.first.name}" instead.');
+            } else {
+              debugPrint('Error: No categories found in Supabase. Please create categories first.');
+              debugPrint('Subscription updated locally only.');
+              // Continue with local update only
+            }
+          }
+
+          if (categoryId != null) {
+            // Convert to Supabase format and update
+            final supabaseData = updatedSubscription.toSupabaseMap(
+              userId: user.id,
+              categoryId: categoryId,
+            );
+            
+            await _supabaseRepository.update(updatedSubscription.id, supabaseData);
+            debugPrint('Subscription updated in Supabase: ${updatedSubscription.serviceName}');
+          }
+        }
+      } catch (e) {
+        // Log error but don't fail - subscription is already updated locally
+        debugPrint('Warning: Failed to update subscription in Supabase: $e');
+        debugPrint('Subscription updated locally only. Will sync when connection is available.');
+      }
 
       // Schedule notification if reminder is set
       if (updatedSubscription.reminderType != 'none' &&
@@ -187,7 +233,22 @@ class SubscriptionProvider with ChangeNotifier {
         await _notificationService.cancelReminder(subscription.notificationId!);
       }
 
+      // Delete from local SQLite first
       await _dbHelper.deleteSubscription(id);
+
+      // Also delete from Supabase if user is authenticated
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          await _supabaseRepository.delete(id);
+          debugPrint('Subscription deleted from Supabase: ${subscription?.serviceName ?? "Unknown"}');
+        }
+      } catch (e) {
+        // Log error but don't fail - subscription is already deleted locally
+        debugPrint('Warning: Failed to delete subscription from Supabase: $e');
+        debugPrint('Subscription deleted locally only. Will sync when connection is available.');
+      }
+
       await loadSubscriptions();
       print('🗑️ Deleted subscription: ${subscription?.serviceName ?? "Unknown"} - Notification cancelled');
     } catch (e) {
