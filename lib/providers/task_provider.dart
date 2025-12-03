@@ -34,6 +34,8 @@ class TaskProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Clear existing tasks before loading new data to prevent stale data
+      _tasks.clear();
       _tasks = await _dbHelper.getAllTasks();
       await _rescheduleAllReminders();
     } catch (e) {

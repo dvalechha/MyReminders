@@ -22,7 +22,6 @@ The database schema is defined in `reminders_schema.sql`. This file contains the
      - `subscriptions`
      - `appointments`
      - `tasks`
-     - `custom_reminder`
 
 ## Important Notes
 

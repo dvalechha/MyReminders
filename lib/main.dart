@@ -6,7 +6,6 @@ import 'providers/auth_provider.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/appointment_provider.dart';
 import 'providers/task_provider.dart';
-import 'providers/custom_reminder_provider.dart';
 import 'providers/user_profile_provider.dart';
 import 'providers/navigation_model.dart';
 import 'utils/environment_config.dart';
@@ -65,7 +64,6 @@ class MyReminderApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
         ChangeNotifierProvider(create: (_) => AppointmentProvider()),
         ChangeNotifierProvider(create: (_) => TaskProvider()),
-        ChangeNotifierProvider(create: (_) => CustomReminderProvider()),
         ChangeNotifierProvider(create: (_) => NavigationModel()),
       ],
       child: Consumer<NavigationModel>(
