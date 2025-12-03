@@ -41,7 +41,35 @@ class SubscriptionProvider with ChangeNotifier {
     try {
       // Clear existing subscriptions before loading new data to prevent stale data
       _subscriptions.clear();
-      _subscriptions = await _dbHelper.getAllSubscriptions();
+
+      // Always attempt to fetch latest from Supabase when available
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
+          final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
+          // Map category_id to enum using CategoryRepository when possible
+          _subscriptions = [];
+          for (final row in supabaseRows) {
+            final categoryId = row['category_id'] as String?;
+            SubscriptionCategory categoryEnum = SubscriptionCategory.other;
+            if (categoryId != null) {
+              try {
+                final category = await _categoryRepository.getById(categoryId);
+                if (category != null) {
+                  categoryEnum = SubscriptionCategory.fromString(category.name);
+                }
+              } catch (_) {}
+            }
+            _subscriptions.add(Subscription.fromSupabaseMap(row, categoryEnum));
+          }
+        } catch (e) {
+          debugPrint('Warning: Failed to fetch subscriptions from Supabase, falling back to local: $e');
+          _subscriptions = await _dbHelper.getAllSubscriptions();
+        }
+      } else {
+        // Fallback to local when user not authenticated
+        _subscriptions = await _dbHelper.getAllSubscriptions();
+      }
       // Reschedule all reminders on app start
       await _notificationService.rescheduleAllReminders(_subscriptions);
     } catch (e) {

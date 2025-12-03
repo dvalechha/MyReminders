@@ -1,64 +1,50 @@
-**Title:** Implement a Dynamic "Today's Snapshot" Dashboard on the Welcome Screen
+**Title:** Refine Natural Language Parser for Smarter Appointment Creation
 
 **Context:**
-You are AntiGravity, an expert Flutter/Dart developer. Your task is to transform the application's welcome screen from a simple input page into a dynamic, context-aware dashboard. This will provide immediate value to the user upon opening the app and improve engagement.
+You are GitHub Copilot, an expert Flutter/Dart developer. Your task is to refine the logic within the `NaturalLanguageParser` to be more intelligent and accurate when parsing appointment details from a user's free-text input. The current implementation often misidentifies the appointment's title and location, requiring the user to manually correct the fields.
 
-The screen should have two states:
-1.  **Default State (No Input):** Display a "Today's Snapshot" widget summarizing the user's most important upcoming items.
-2.  **Active State (User Typing):** When the user starts typing in the Omnibox, the snapshot will be replaced by the existing animation/preview box.
+**Affected File:**
+*   `lib/utils/natural_language_parser.dart`
 
-**Affected Files:**
-*   `lib/views/welcome_view.dart` (Major modifications)
-*   `lib/providers/subscription_provider.dart` (Data access)
-*   `lib/providers/appointment_provider.dart` (Data access)
-*   `lib/providers/task_provider.dart` (Data access)
+**The Problem (Use Case):**
 
-**New Files to Create:**
-*   `lib/widgets/todays_snapshot_view.dart` (The new summary card widget)
-*   `lib/views/unified_agenda_view.dart` (A new screen for the full agenda)
+When a user inputs the following text:
+`Create an appointment to meet Dr Smith at 5pm tomorrow`
+
+The parser currently produces this incorrect result:
+*   **Title:** `to meet dr smith`
+*   **Location:** `5pm tomorrow`
+
+**The Goal (Desired Result):**
+
+The parser should be smart enough to produce this clean and accurate result:
+*   **Title:** `Meet Dr Smith` (or simply `Dr Smith`)
+*   **Location:** `null` (or an empty string)
 
 **Instructions:**
 
-**Part 1: Create the Unified Agenda View**
+Your task is to modify the `parse` method within `lib/utils/natural_language_parser.dart` to implement the following improvements:
 
-1.  Create a new file: `lib/views/unified_agenda_view.dart`.
-2.  Implement a `StatefulWidget` called `UnifiedAgendaView`.
-3.  The view should have an `AppBar` titled "Upcoming Agenda".
-4.  In its state, fetch all data from the `SubscriptionProvider`, `AppointmentProvider`, and `TaskProvider`.
-5.  Combine the items from all three sources into a single list.
-6.  Sort this master list chronologically based on the relevant date (renewal date, appointment time, due date).
-7.  Display the sorted items in a `ListView`, where each item is styled distinctly based on its type (e.g., using different icons and text formatting for subscriptions, appointments, and tasks).
+1.  **Improve Title Extraction Logic:**
+    *   First, identify and extract the date/time phrases (e.g., "at 5pm tomorrow") from the input string and set them aside.
+    *   From the remaining text, identify and remove common conversational "filler" or "action" phrases. Create a list of these phrases to filter out, which should include (but not be limited to):
+        *   `"appointment to meet"`
+        *   `"appointment with"`
+        *   `"meeting with"`
+        *   `"to meet"`
+        *   `"with"`
+    *   The text that remains after this filtering is the core subject of the appointment (e.g., `Dr Smith`).
+    *   Set this cleaned-up subject as the `title`. You can optionally capitalize it or prepend a standard verb like "Meet" for consistency.
 
-**Part 2: Create the "Today's Snapshot" Widget**
+2.  **Improve Location Extraction Logic:**
+    *   The location should **only** be populated if there is an explicit location keyword present in the input string.
+    *   Define a list of location keywords to look for, such as:
+        *   `"at"`
+        *   `"in"`
+    *   The parser should check if one of these keywords is followed by a word or phrase that is **not** part of a date or time expression.
+    *   In the example `"Create an appointment to meet Dr Smith at 5pm tomorrow"`, the word "at" is part of the time expression, not a location indicator. Therefore, the `location` field should be left `null`.
+    *   For an input like `"Appointment with Dr Smith at the Clinic"`, the parser should correctly identify `"the Clinic"` as the location.
 
-1.  Create a new file: `lib/widgets/todays_snapshot_view.dart`.
-2.  Implement a `StatelessWidget` called `TodaysSnapshotView`.
-3.  The widget should accept lists of subscriptions, appointments, and tasks as parameters.
-4.  Implement logic to determine the most relevant items to display:
-    *   **Up Next:** The soonest upcoming appointment for today.
-    *   **Due Today:** The most important task due today.
-    *   **Renewing Soon:** The next subscription that is renewing (today or tomorrow).
-5.  Design the widget as a card (e.g., using `Card` or a `Container` with decoration).
-6.  Display the selected items with appropriate icons (e.g., `Icons.calendar_today`, `Icons.check_box_outline_blank`, `Icons.autorenew`).
-7.  Add a "View Full Agenda ->" `TextButton` or similar interactive element. Tapping anywhere on the card should navigate to the `UnifiedAgendaView`.
+**Summary of Desired Behavior:**
 
-**Part 3: Update the Welcome View**
-
-1.  Open `lib/views/welcome_view.dart`.
-2.  In the `_WelcomeViewState`, add a listener to the `_omniboxController` to detect when the text is empty or not. A boolean state variable like `_isTyping` should be updated in `setState`.
-3.  In the `build` method, locate the `AnimatedContainer` that currently holds the `PulsingGradientPlaceholder` (the animation box).
-4.  Replace this static implementation with an `AnimatedSwitcher`.
-    *   **`duration`:** Set a smooth duration, like `Duration(milliseconds: 300)`.
-    *   **`child`:** Use a condition based on `_isTyping` (or `_omniboxController.text.isEmpty`).
-        *   If the user **is typing**, the child should be the `PulsingGradientPlaceholder`.
-        *   If the user **is not typing**, the child should be your new `TodaysSnapshotView` widget. You will need to fetch the data from the providers to pass into it.
-5.  Ensure the transition between the two widgets is a fade (the default for `AnimatedSwitcher`).
-
-**Summary of Desired User Experience:**
-
-*   **On App Launch:** The user sees the Omnibox and the "Today's Snapshot" card, which gives them an instant, glanceable summary of their day.
-*   **On Tapping the Snapshot:** The user is navigated to the `UnifiedAgendaView`, where they can see all their upcoming items in a sorted list.
-*   **On Typing in Omnibox:** The "Today's Snapshot" card smoothly fades out and is replaced by the pulsing animation box, which reflects the text being typed.
-*   **On Clearing Omnibox:** The animation box fades out and is replaced by the "Today's Snapshot" card.
-
-Please implement this feature with clean, well-structured, and production-ready Dart code.
+The parser should no longer literally copy chunks of the input string into the `title` and `location` fields. It must be updated to intelligently dissect the user's command, discard conversational filler, and correctly distinguish between the subject, time, and a potential location. The result should be a significantly cleaner and more accurate pre-filled form in the UI.

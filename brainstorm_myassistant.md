@@ -21,6 +21,16 @@ This document captures ongoing ideas and decisions about the Personal Assistant 
 5. Voice commands: platform speech-to-text (Android SpeechRecognizer, iOS SFSpeechRecognizer) feeds the same parser, with fallbacks when transcription confidence is low.
 6. LLM integration is optional; start with deterministic logic and add a model later for edge cases.
 
+### MVP Feature 2 Details
+1. **Dynamic Welcome Screen:** The main view will serve as a dynamic dashboard, replacing the static welcome/input screen.
+2. **Two States:** The screen will have two context-aware states:
+    - **Default State (No Input):** Displays a "Today's Snapshot" widget summarizing critical daily items.
+    - **Active State (User Typing):** The snapshot widget fades out and is replaced by the animation/preview box that reflects the user's input in real-time.
+3. **"Today's Snapshot" Widget:**
+    - This card provides a glanceable summary of the most relevant information for the user's day.
+    - It will surface items like "Up Next" (soonest appointment), "Due Today" (critical tasks), and "Renewing Soon" (upcoming subscriptions).
+4. **Entry to Full Agenda:** The snapshot widget will be tappable, navigating the user to a full, chronologically sorted "Unified Agenda View" that lists all upcoming items from every category.
+
 ## Post-MVP Ideas
 1. Multi-step automation workflows and routines.
 2. Intelligent recommendations based on user habits (meeting times, focus blocks).

@@ -35,7 +35,23 @@ class AppointmentProvider with ChangeNotifier {
     try {
       // Clear existing appointments before loading new data to prevent stale data
       _appointments.clear();
-      _appointments = await _dbHelper.getAllAppointments();
+
+      // Always attempt to fetch latest from Supabase when available
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
+          final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
+          _appointments = supabaseRows
+              .map((row) => Appointment.fromSupabaseMap(row))
+              .toList();
+        } catch (e) {
+          debugPrint('Warning: Failed to fetch appointments from Supabase, falling back to local: $e');
+          _appointments = await _dbHelper.getAllAppointments();
+        }
+      } else {
+        // Fallback to local when user not authenticated
+        _appointments = await _dbHelper.getAllAppointments();
+      }
       await _rescheduleAllReminders();
     } catch (e) {
       print('Error loading appointments: $e');

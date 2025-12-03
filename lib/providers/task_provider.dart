@@ -36,7 +36,23 @@ class TaskProvider with ChangeNotifier {
     try {
       // Clear existing tasks before loading new data to prevent stale data
       _tasks.clear();
-      _tasks = await _dbHelper.getAllTasks();
+
+      // Always attempt to fetch latest from Supabase when available
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
+          final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
+          _tasks = supabaseRows
+              .map((row) => Task.fromSupabaseMap(row))
+              .toList();
+        } catch (e) {
+          debugPrint('Warning: Failed to fetch tasks from Supabase, falling back to local: $e');
+          _tasks = await _dbHelper.getAllTasks();
+        }
+      } else {
+        // Fallback to local when user not authenticated
+        _tasks = await _dbHelper.getAllTasks();
+      }
       await _rescheduleAllReminders();
     } catch (e) {
       print('Error loading tasks: $e');
