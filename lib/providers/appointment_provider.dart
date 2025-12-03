@@ -1,11 +1,16 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/appointment.dart';
 import '../database/database_helper.dart';
 import '../services/notification_service.dart';
+import '../repositories/appointment_repository.dart';
+import '../repositories/category_repository.dart';
 
 class AppointmentProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final NotificationService _notificationService = NotificationService.instance;
+  final AppointmentRepository _supabaseRepository = AppointmentRepository();
+  final CategoryRepository _categoryRepository = CategoryRepository();
 
   List<Appointment> _appointments = [];
   bool _isLoading = false;
@@ -74,7 +79,38 @@ class AppointmentProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
+      // Save to local SQLite first (for offline support)
       await _dbHelper.insertAppointment(updatedAppointment);
+
+      // Also save to Supabase if user is authenticated
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          // Get category ID if category is specified
+          String? categoryId;
+          if (appointment.category != null && appointment.category!.isNotEmpty) {
+            final category = await _categoryRepository.getByName(appointment.category!);
+            categoryId = category?.id;
+            
+            if (categoryId == null) {
+              debugPrint('Warning: Category "${appointment.category}" not found in Supabase.');
+            }
+          }
+
+          // Convert to Supabase format and save
+          final supabaseData = updatedAppointment.toSupabaseMap(
+            userId: user.id,
+            categoryId: categoryId,
+          );
+          
+          await _supabaseRepository.create(supabaseData);
+          debugPrint('Appointment saved to Supabase: ${updatedAppointment.title}');
+        }
+      } catch (e) {
+        // Log error but don't fail - appointment is already saved locally
+        debugPrint('Warning: Failed to save appointment to Supabase: $e');
+        debugPrint('Appointment saved locally only. Will sync when connection is available.');
+      }
 
       if (updatedAppointment.reminderOffset != ReminderOffset.none &&
           updatedAppointment.notificationId != null) {
@@ -105,7 +141,38 @@ class AppointmentProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
+      // Update local SQLite first
       await _dbHelper.updateAppointment(updatedAppointment);
+
+      // Also update in Supabase if user is authenticated
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          // Get category ID if category is specified
+          String? categoryId;
+          if (appointment.category != null && appointment.category!.isNotEmpty) {
+            final category = await _categoryRepository.getByName(appointment.category!);
+            categoryId = category?.id;
+            
+            if (categoryId == null) {
+              debugPrint('Warning: Category "${appointment.category}" not found in Supabase.');
+            }
+          }
+
+          // Convert to Supabase format and update
+          final supabaseData = updatedAppointment.toSupabaseMap(
+            userId: user.id,
+            categoryId: categoryId,
+          );
+          
+          await _supabaseRepository.update(updatedAppointment.id, supabaseData);
+          debugPrint('Appointment updated in Supabase: ${updatedAppointment.title}');
+        }
+      } catch (e) {
+        // Log error but don't fail - appointment is already updated locally
+        debugPrint('Warning: Failed to update appointment in Supabase: $e');
+        debugPrint('Appointment updated locally only. Will sync when connection is available.');
+      }
 
       if (updatedAppointment.reminderOffset != ReminderOffset.none &&
           updatedAppointment.notificationId != null) {
@@ -128,7 +195,22 @@ class AppointmentProvider with ChangeNotifier {
         await _notificationService.cancelReminder(appointment.notificationId!);
       }
 
+      // Delete from local SQLite first
       await _dbHelper.deleteAppointment(id);
+
+      // Also delete from Supabase if user is authenticated
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          await _supabaseRepository.delete(id);
+          debugPrint('Appointment deleted from Supabase: ${appointment?.title ?? "Unknown"}');
+        }
+      } catch (e) {
+        // Log error but don't fail - appointment is already deleted locally
+        debugPrint('Warning: Failed to delete appointment from Supabase: $e');
+        debugPrint('Appointment deleted locally only. Will sync when connection is available.');
+      }
+
       await loadAppointments();
     } catch (e) {
       print('Error deleting appointment: $e');
