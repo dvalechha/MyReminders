@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:math' as math;
 import '../providers/subscription_provider.dart';
 import '../providers/appointment_provider.dart';
 import '../providers/task_provider.dart';
 import '../widgets/omnibox.dart';
 import '../widgets/pulsing_gradient_placeholder.dart';
 import '../widgets/default_welcome_view.dart';
-import '../widgets/success_intent_view.dart';
 import '../widgets/help_suggestion_view.dart';
+import '../widgets/todays_snapshot_view.dart';
 import '../utils/natural_language_parser.dart';
 import '../services/intent_parser_service.dart';
 import '../models/parsed_intent.dart';
 import '../models/subscription.dart';
+import 'unified_agenda_view.dart';
 import 'subscription_form_view.dart';
 import 'appointment_form_view.dart';
 import 'task_form_view.dart';
@@ -33,6 +35,7 @@ class _WelcomeViewState extends State<WelcomeView> {
   ParsedIntent? _parsedIntent;
   bool _hasSubmitted = false; // Track if user has pressed Enter
   final GlobalKey<OmniboxState> _omniboxKey = GlobalKey<OmniboxState>();
+  bool _isTyping = false;
 
   @override
   void initState() {
@@ -47,6 +50,11 @@ class _WelcomeViewState extends State<WelcomeView> {
     if (_hasSubmitted && query != _currentInput) {
       setState(() {
         _hasSubmitted = false;
+      });
+    }
+    if (_isTyping != query.isNotEmpty) {
+      setState(() {
+        _isTyping = query.isNotEmpty;
       });
     }
     _handleInputChange(query);
@@ -229,6 +237,7 @@ class _WelcomeViewState extends State<WelcomeView> {
         _currentInput = null;
         _parsedIntent = null;
         _hasSubmitted = false;
+        _isTyping = false;
       });
       _omniboxController.clear();
     }
@@ -267,6 +276,7 @@ class _WelcomeViewState extends State<WelcomeView> {
           _currentInput = null;
           _parsedIntent = null;
           _hasSubmitted = false;
+          _isTyping = false;
         });
         _omniboxController.clear();
       }
@@ -300,6 +310,7 @@ class _WelcomeViewState extends State<WelcomeView> {
       _currentInput = example;
       _hasSubmitted = false; // Reset so they can see the success view or edit
       _parsedIntent = parsedIntent;
+      _isTyping = example.isNotEmpty;
     });
     
     // Request focus on the TextField to show keyboard and cursor
@@ -353,6 +364,7 @@ class _WelcomeViewState extends State<WelcomeView> {
             _currentInput = null;
             _parsedIntent = null;
             _hasSubmitted = false;
+            _isTyping = false;
           });
           // Clear the omnibox text
           _omniboxController.clear();
@@ -402,6 +414,7 @@ class _WelcomeViewState extends State<WelcomeView> {
             _currentInput = null;
             _parsedIntent = null;
             _hasSubmitted = false;
+            _isTyping = false;
           });
           // Clear the omnibox text
           _omniboxController.clear();
@@ -447,6 +460,7 @@ class _WelcomeViewState extends State<WelcomeView> {
             _currentInput = null;
             _parsedIntent = null;
             _hasSubmitted = false;
+            _isTyping = false;
           });
           // Clear the omnibox text
           _omniboxController.clear();
@@ -547,20 +561,44 @@ class _WelcomeViewState extends State<WelcomeView> {
                     _currentInput = null;
                     _parsedIntent = null;
                     _hasSubmitted = false; // Reset submitted flag
+                    _isTyping = false;
                   });
                 },
                 existingItems: _getExistingItems(),
               ),
               const SizedBox(height: 12),
-              // Adaptive animation/preview box that shrinks when keyboard appears
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeInOut,
-                height: keyboardVisible ? 100.0 : 200.0,
-                child: PulsingGradientPlaceholder(
-                  inputText: _currentInput,
-                ),
-              ),
+                // Adaptive animation/preview box or Today's Snapshot
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          height: keyboardVisible
+              ? 140.0
+              : math.min(220.0, MediaQuery.of(context).size.height * 0.32),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: _isTyping
+                ? PulsingGradientPlaceholder(
+                    key: const ValueKey('placeholder'),
+                    inputText: _currentInput,
+                  )
+                : SingleChildScrollView(
+                    key: const ValueKey('snapshot_scroll'),
+                    physics: const BouncingScrollPhysics(),
+                    child: TodaysSnapshotView(
+                      key: const ValueKey('snapshot'),
+                      subscriptions: context.watch<SubscriptionProvider>().subscriptions,
+                      appointments: context.watch<AppointmentProvider>().appointments,
+                      tasks: context.watch<TaskProvider>().tasks,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const UnifiedAgendaView()),
+                        );
+                      },
+                    ),
+                  ),
+          ),
+        ),
               const SizedBox(height: 12),
               // Content area - scrollable when needed
               Expanded(
