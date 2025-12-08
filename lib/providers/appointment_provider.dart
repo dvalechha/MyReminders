@@ -41,9 +41,26 @@ class AppointmentProvider with ChangeNotifier {
       if (user != null) {
         try {
           final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
-          _appointments = supabaseRows
-              .map((row) => Appointment.fromSupabaseMap(row))
-              .toList();
+          // Map and dedupe appointments by id and by (title + date) to avoid duplicates
+          final Map<String, Appointment> mapped = {};
+          for (final row in supabaseRows) {
+            final appt = Appointment.fromSupabaseMap(row);
+            mapped[appt.id] = appt;
+          }
+
+          // Further dedupe by title + date (date only) keeping earliest time
+          final items = mapped.values.toList();
+          items.sort((a, b) => a.dateTime.compareTo(b.dateTime));
+          final seen = <String>{};
+          final deduped = <Appointment>[];
+          for (final a in items) {
+            final key = '${a.title.toLowerCase().trim()}|${a.dateTime.toIso8601String().split('T')[0]}';
+            if (!seen.contains(key)) {
+              seen.add(key);
+              deduped.add(a);
+            }
+          }
+          _appointments = deduped;
         } catch (e) {
           debugPrint('Warning: Failed to fetch appointments from Supabase, falling back to local: $e');
           _appointments = await _dbHelper.getAllAppointments();
@@ -118,8 +135,20 @@ class AppointmentProvider with ChangeNotifier {
             categoryId: categoryId,
           );
           
-          await _supabaseRepository.create(supabaseData);
-          debugPrint('Appointment saved to Supabase: ${updatedAppointment.title}');
+          // If an appointment with the same id exists in Supabase, update it instead of creating
+          final existing = await _supabaseRepository.getById(updatedAppointment.id);
+          if (existing != null) {
+            await _supabaseRepository.update(updatedAppointment.id, supabaseData);
+            debugPrint('Appointment updated in Supabase: ${updatedAppointment.title}');
+          } else {
+            await _supabaseRepository.create(supabaseData);
+            debugPrint('Appointment saved to Supabase: ${updatedAppointment.title}');
+          }
+
+          // Remove any local copy with the same id to avoid duplicate listings
+          try {
+            await _dbHelper.deleteAppointment(updatedAppointment.id);
+          } catch (_) {}
         } catch (e) {
           // If Supabase fails, fall back to local save
           debugPrint('Warning: Failed to save appointment to Supabase: $e');
