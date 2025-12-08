@@ -254,6 +254,14 @@ class NaturalLanguageParser {
       for (final r in appointmentFiller) {
         cleaned = cleaned.replaceAll(r, ' ');
       }
+      // Remove stray 'for' tokens that can remain from constructions like
+      // "appointment for 5pm tomorrow to meet..." which after stripping
+      // date/time can leave "for to meet ..." leading to titles like
+      // "For Dr Smith". Clean 'for' here for appointments and also strip
+      // leading filler tokens that may remain.
+      cleaned = cleaned.replaceAll(RegExp(r'\bfor\b', caseSensitive: false), ' ');
+      // Remove leading filler words like 'for', 'to', 'of'
+      cleaned = cleaned.replaceFirst(RegExp(r'^(?:for|to|of)\s+', caseSensitive: false), '');
     } else if (type == ParsedReminderType.task) {
       cleaned = cleaned
           .replaceAll(RegExp(r'\btasks?\b', caseSensitive: false), ' ')

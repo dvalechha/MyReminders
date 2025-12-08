@@ -42,9 +42,31 @@ class TaskProvider with ChangeNotifier {
       if (user != null) {
         try {
           final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
-          _tasks = supabaseRows
-              .map((row) => Task.fromSupabaseMap(row))
-              .toList();
+          // Map and dedupe tasks by id and by (title + dueDate)
+          final Map<String, Task> mapped = {};
+          for (final row in supabaseRows) {
+            final t = Task.fromSupabaseMap(row);
+            mapped[t.id] = t;
+          }
+
+          // Further dedupe by title + dueDate (date only)
+          final items = mapped.values.toList();
+          items.sort((a, b) {
+            final da = a.dueDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final db = b.dueDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return da.compareTo(db);
+          });
+          final seen = <String>{};
+          final deduped = <Task>[];
+          for (final t in items) {
+            final dateKey = t.dueDate != null ? t.dueDate!.toIso8601String().split('T')[0] : 'nodate';
+            final key = '${t.title.toLowerCase().trim()}|$dateKey';
+            if (!seen.contains(key)) {
+              seen.add(key);
+              deduped.add(t);
+            }
+          }
+          _tasks = deduped;
         } catch (e) {
           debugPrint('Warning: Failed to fetch tasks from Supabase, falling back to local: $e');
           _tasks = await _dbHelper.getAllTasks();
@@ -121,8 +143,20 @@ class TaskProvider with ChangeNotifier {
             categoryId: categoryId,
           );
           
-          await _supabaseRepository.create(supabaseData);
-          debugPrint('Task saved to Supabase: ${updatedTask.title}');
+          // If a task with the same id exists in Supabase, update it instead of creating
+          final existing = await _supabaseRepository.getById(updatedTask.id);
+          if (existing != null) {
+            await _supabaseRepository.update(updatedTask.id, supabaseData);
+            debugPrint('Task updated in Supabase: ${updatedTask.title}');
+          } else {
+            await _supabaseRepository.create(supabaseData);
+            debugPrint('Task saved to Supabase: ${updatedTask.title}');
+          }
+
+          // Remove any local copy with the same id to avoid duplicate listings
+          try {
+            await _dbHelper.deleteTask(updatedTask.id);
+          } catch (_) {}
         } catch (e) {
           // If Supabase fails, fall back to local save
           debugPrint('Warning: Failed to save task to Supabase: $e');
