@@ -48,7 +48,8 @@ class SubscriptionProvider with ChangeNotifier {
         try {
           final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
           // Map category_id to enum using CategoryRepository when possible
-          _subscriptions = [];
+          // Map rows to Subscription objects and deduplicate by id
+          final Map<String, Subscription> mapped = {};
           for (final row in supabaseRows) {
             final categoryId = row['category_id'] as String?;
             SubscriptionCategory categoryEnum = SubscriptionCategory.other;
@@ -60,8 +61,24 @@ class SubscriptionProvider with ChangeNotifier {
                 }
               } catch (_) {}
             }
-            _subscriptions.add(Subscription.fromSupabaseMap(row, categoryEnum));
+            final sub = Subscription.fromSupabaseMap(row, categoryEnum);
+            mapped[sub.id] = sub; // last-one-wins, removes duplicates by id
           }
+          // Convert mapped values to list and perform additional dedupe by
+          // (serviceName, renewalDate) to catch duplicates that may have
+          // different ids but represent the same subscription.
+          final List<Subscription> deduped = [];
+          final seenKeys = <String>{};
+          final items = mapped.values.toList()
+            ..sort((a, b) => a.renewalDate.compareTo(b.renewalDate));
+          for (final s in items) {
+            final key = '${s.serviceName.toLowerCase().trim()}|${s.renewalDate.toIso8601String().split('T')[0]}';
+            if (!seenKeys.contains(key)) {
+              seenKeys.add(key);
+              deduped.add(s);
+            }
+          }
+          _subscriptions = deduped;
         } catch (e) {
           debugPrint('Warning: Failed to fetch subscriptions from Supabase, falling back to local: $e');
           _subscriptions = await _dbHelper.getAllSubscriptions();
@@ -138,8 +155,20 @@ class SubscriptionProvider with ChangeNotifier {
             categoryId: categoryId,
           );
           
-          await _supabaseRepository.create(supabaseData);
-          debugPrint('Subscription saved to Supabase: ${updatedSubscription.serviceName}');
+          // If a subscription with the same id already exists in Supabase, update it instead
+          final existing = await _supabaseRepository.getById(updatedSubscription.id);
+          if (existing != null) {
+            await _supabaseRepository.update(updatedSubscription.id, supabaseData);
+            debugPrint('Subscription updated in Supabase: ${updatedSubscription.serviceName}');
+          } else {
+            await _supabaseRepository.create(supabaseData);
+            debugPrint('Subscription saved to Supabase: ${updatedSubscription.serviceName}');
+          }
+
+          // Remove any local copy with the same id to avoid duplicate listings
+          try {
+            await _dbHelper.deleteSubscription(updatedSubscription.id);
+          } catch (_) {}
         }
       } catch (e) {
         // Log error but don't fail - subscription is already saved locally
