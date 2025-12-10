@@ -1,50 +1,66 @@
-**Title:** Refine Natural Language Parser for Smarter Appointment Creation
+**Title:** Implement Settings View and Navigation Drawer
 
 **Context:**
-You are GitHub Copilot, an expert Flutter/Dart developer. Your task is to refine the logic within the `NaturalLanguageParser` to be more intelligent and accurate when parsing appointment details from a user's free-text input. The current implementation often misidentifies the appointment's title and location, requiring the user to manually correct the fields.
+You are GitHub Copilot, an expert Flutter/Dart developer. Your task is to implement a new "Settings" view and integrate it into a Navigation Drawer. The Settings view should be accessible from all top-level screens, but not from transactional or form-based screens.
 
-**Affected File:**
-*   `lib/utils/natural_language_parser.dart`
+**Affected Files (Likely):**
+*   `lib/main.dart` (for Navigation Drawer integration)
+*   `lib/views/settings_view.dart` (new file for the Settings UI)
+*   Potentially other top-level view files to include the Navigation Drawer or its icon.
 
-**The Problem (Use Case):**
-
-When a user inputs the following text:
-`Create an appointment to meet Dr Smith at 5pm tomorrow`
-
-The parser currently produces this incorrect result:
-*   **Title:** `to meet dr smith`
-*   **Location:** `5pm tomorrow`
-
-**The Goal (Desired Result):**
-
-The parser should be smart enough to produce this clean and accurate result:
-*   **Title:** `Meet Dr Smith` (or simply `Dr Smith`)
-*   **Location:** `null` (or an empty string)
+**Goal:**
+Create a functional and aesthetically pleasing Settings view with a Navigation Drawer, offering the specified non-Pro options.
 
 **Instructions:**
 
-Your task is to modify the `parse` method within `lib/utils/natural_language_parser.dart` to implement the following improvements:
+1.  **Create `lib/views/settings_view.dart`:**
+    *   Implement a new Stateless or StatefulWidget for `SettingsView`.
+    *   This view should be a simple `Scaffold` containing an `AppBar` with the title "Settings".
+    *   The `body` of the `SettingsView` should display the following options as `ListTile` widgets, suitable for a minimal settings menu. Each `ListTile` should have a leading icon and appropriate title text. For now, the `onTap` actions can be empty or navigate to a placeholder screen.
 
-1.  **Improve Title Extraction Logic:**
-    *   First, identify and extract the date/time phrases (e.g., "at 5pm tomorrow") from the input string and set them aside.
-    *   From the remaining text, identify and remove common conversational "filler" or "action" phrases. Create a list of these phrases to filter out, which should include (but not be limited to):
-        *   `"appointment to meet"`
-        *   `"appointment with"`
-        *   `"meeting with"`
-        *   `"to meet"`
-        *   `"with"`
-    *   The text that remains after this filtering is the core subject of the appointment (e.g., `Dr Smith`).
-    *   Set this cleaned-up subject as the `title`. You can optionally capitalize it or prepend a standard verb like "Meet" for consistency.
+        *   **Account & Profile:**
+            *   Title: "Account & Profile"
+            *   Icon: `Icons.person`
+            *   Description: (Optional, as a subtitle or leading to a new screen) "Manage your personal information."
+            *   Sub-options (can be on a new screen, or simple actions for now):
+                *   Change Password (Icon: `Icons.lock`)
+                *   Account Deletion (Icon: `Icons.delete_forever`)
+        *   **Notifications:**
+            *   Title: "Notifications"
+            *   Icon: `Icons.notifications`
+            *   Description: (Optional) "Manage app notification preferences."
+            *   Sub-options (can be on a new screen, or simple toggles/actions for now):
+                *   Reminder alerts (e.g., a `SwitchListTile`)
+                *   Task due notifications (e.g., a `SwitchListTile`)
+        *   **Privacy & Data:**
+            *   Title: "Privacy & Data"
+            *   Icon: `Icons.security`
+            *   Description: (Optional) "Review privacy policy and terms."
+            *   Sub-options (can be on a new screen, or simple actions for now):
+                *   Privacy Policy (Icon: `Icons.policy`) - Should open a URL or display static text.
+                *   Terms of Service (Icon: `Icons.description`) - Should open a URL or display static text.
+        *   **About:**
+            *   Title: "About This App"
+            *   Icon: `Icons.info`
+            *   Description: (Optional) "App version and legal notices."
+            *   Sub-options (can be on a new screen, or simple actions for now):
+                *   App Version (Icon: `Icons.mobile_friendly`) - Display current app version.
+                *   Legal Notices (Icon: `Icons.gavel`) - Show open-source licenses, copyright.
 
-2.  **Improve Location Extraction Logic:**
-    *   The location should **only** be populated if there is an explicit location keyword present in the input string.
-    *   Define a list of location keywords to look for, such as:
-        *   `"at"`
-        *   `"in"`
-    *   The parser should check if one of these keywords is followed by a word or phrase that is **not** part of a date or time expression.
-    *   In the example `"Create an appointment to meet Dr Smith at 5pm tomorrow"`, the word "at" is part of the time expression, not a location indicator. Therefore, the `location` field should be left `null`.
-    *   For an input like `"Appointment with Dr Smith at the Clinic"`, the parser should correctly identify `"the Clinic"` as the location.
+2.  **Integrate Navigation Drawer in `lib/main.dart` (or common parent widget):**
+    *   Identify the main `Scaffold` widget that serves as the root for your top-level views.
+    *   Add a `Drawer` widget to this `Scaffold`.
+    *   The `Drawer` should contain a `ListView` of navigation items.
+    *   Include at least one `ListTile` for "Settings" that navigates to the `SettingsView` when tapped.
+    *   Ensure the Navigation Drawer can be opened by a `Builder` widget that provides `Scaffold.of(context).openDrawer()` when an `IconButton` (e.g., `Icons.menu`) in the `AppBar` is pressed.
 
-**Summary of Desired Behavior:**
+3.  **Conditional Accessibility:**
+    *   The Navigation Drawer icon (hamburger menu) should be present in the `AppBar` of your top-level views (e.g., `unified_agenda_view.dart`, `todays_snapshot_view.dart`, `tasks_list_view.dart`, `appointments_list_view.dart`).
+    *   The Navigation Drawer icon should **not** be present in the `AppBar` of transactional or form-based screens (e.g., `appointment_form_view.dart`, `task_add_view.dart`, `login_view.dart`, `signup_screen.dart`, `email_verification_view.dart`). These screens should typically only have a back button.
+    *   You might need to adjust the `AppBar` implementations in these various view files to conditionally show/hide the leading `IconButton` based on whether they are top-level or transactional. A common pattern is to check `ModalRoute.of(context)?.canPop` to determine if a back button is appropriate, or to pass a flag to your custom `AppBar` widget.
 
-The parser should no longer literally copy chunks of the input string into the `title` and `location` fields. It must be updated to intelligently dissect the user's command, discard conversational filler, and correctly distinguish between the subject, time, and a potential location. The result should be a significantly cleaner and more accurate pre-filled form in the UI.
+**Important Considerations:**
+*   Use standard Flutter widgets and follow best practices for UI layout and navigation.
+*   Ensure the design is clean and minimal, consistent with the existing app's aesthetic.
+*   For placeholder actions (e.g., opening a URL for Privacy Policy), you can use `url_launcher` package if available, or simply print to console for now.
+*   Focus on the structure and navigation; actual implementation of sub-setting logic can be deferred.
