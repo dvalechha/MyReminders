@@ -242,15 +242,7 @@ class _TasksListViewState extends State<TasksListView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
-            if (task.category != null)
-              Text(
-                task.category!,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
+            // Category display removed from task list; category id remains in model
             if (task.dueDate != null) ...[
               const SizedBox(height: 4),
               Text(
