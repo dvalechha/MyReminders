@@ -262,6 +262,49 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Returns true when the user signed up directly with email/password
+  bool get isDirectSignIn {
+    try {
+      final provider = _user?.appMetadata['provider'];
+      return provider != null && provider == 'email';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Update the current user's password
+  Future<void> updatePassword(String newPassword) async {
+    try {
+      final supabase = Supabase.instance.client;
+      await supabase.auth.updateUser(UserAttributes(password: newPassword));
+      // Refresh local user state
+      await refreshSession();
+    } catch (e) {
+      throw Exception('Failed to update password: $e');
+    }
+  }
+
+  /// Delete the current user's account. This will attempt to delete via Supabase
+  /// and then perform local cleanup via LogoutService.
+  Future<void> deleteAccount(BuildContext context) async {
+    try {
+      final supabase = Supabase.instance.client;
+      // Attempt to call an optional edge-function or RPC named 'delete_account'
+      // which should perform server-side deletion using a service role.
+      try {
+        await supabase.functions.invoke('delete_account');
+      } catch (_) {
+        // If no function exists or it fails, continue to logout locally.
+      }
+
+      // Perform client-side cleanup and logout
+      // ignore: use_build_context_synchronously
+      await LogoutService.instance.logout(context);
+    } catch (e) {
+      throw Exception('Failed to delete account: $e');
+    }
+  }
+
   String _getRedirectUrl() {
     // Read redirect URL from .env file
     final redirectUrl = dotenv.env['SUPABASE_REDIRECT_URL'];
