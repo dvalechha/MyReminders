@@ -1,66 +1,102 @@
-**Title:** Implement Settings View and Navigation Drawer
+**Title:** Implement Account & Profile, Change Password, and Delete Account Views
 
 **Context:**
-You are GitHub Copilot, an expert Flutter/Dart developer. Your task is to implement a new "Settings" view and integrate it into a Navigation Drawer. The Settings view should be accessible from all top-level screens, but not from transactional or form-based screens.
+You are GitHub Copilot, an expert Flutter/Dart developer. Your task is to implement the "Account & Profile" section within the Settings menu, including the "Change Password" and "Delete Account" functionalities. These implementations should be minimal, functional, and adhere to the specified logic for direct vs. external sign-ups.
 
 **Affected Files (Likely):**
-*   `lib/main.dart` (for Navigation Drawer integration)
-*   `lib/views/settings_view.dart` (new file for the Settings UI)
-*   Potentially other top-level view files to include the Navigation Drawer or its icon.
+*   `lib/views/settings_view.dart` (to add navigation to AccountProfileView)
+*   `lib/views/account_profile_view.dart` (new file)
+*   `lib/views/change_password_view.dart` (new file)
+*   `lib/views/delete_account_view.dart` (new file)
+*   `lib/providers/auth_provider.dart` (to add password update and account deletion methods)
+*   `lib/services/logout_service.dart` (if not already present, ensure it handles full logout/state reset)
+*   `lib/utils/snackbar.dart` (for user feedback)
 
 **Goal:**
-Create a functional and aesthetically pleasing Settings view with a Navigation Drawer, offering the specified non-Pro options.
+Implement the three specified views with their core UI and a placeholder for their logic, respecting authentication methods for password changes and ensuring robust account deletion.
 
 **Instructions:**
 
-1.  **Create `lib/views/settings_view.dart`:**
-    *   Implement a new Stateless or StatefulWidget for `SettingsView`.
-    *   This view should be a simple `Scaffold` containing an `AppBar` with the title "Settings".
-    *   The `body` of the `SettingsView` should display the following options as `ListTile` widgets, suitable for a minimal settings menu. Each `ListTile` should have a leading icon and appropriate title text. For now, the `onTap` actions can be empty or navigate to a placeholder screen.
+1.  **Update `lib/views/settings_view.dart`:**
+    *   Locate the "Account & Profile" `ListTile`.
+    *   Modify its `onTap` property to navigate to the new `AccountProfileView` (you'll create this next).
+        ```dart
+        // Example for onTap
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(builder: (context) => AccountProfileView()));
+        },
+        ```
 
-        *   **Account & Profile:**
-            *   Title: "Account & Profile"
-            *   Icon: `Icons.person`
-            *   Description: (Optional, as a subtitle or leading to a new screen) "Manage your personal information."
-            *   Sub-options (can be on a new screen, or simple actions for now):
-                *   Change Password (Icon: `Icons.lock`)
-                *   Account Deletion (Icon: `Icons.delete_forever`)
-        *   **Notifications:**
-            *   Title: "Notifications"
-            *   Icon: `Icons.notifications`
-            *   Description: (Optional) "Manage app notification preferences."
-            *   Sub-options (can be on a new screen, or simple toggles/actions for now):
-                *   Reminder alerts (e.g., a `SwitchListTile`)
-                *   Task due notifications (e.g., a `SwitchListTile`)
-        *   **Privacy & Data:**
-            *   Title: "Privacy & Data"
-            *   Icon: `Icons.security`
-            *   Description: (Optional) "Review privacy policy and terms."
-            *   Sub-options (can be on a new screen, or simple actions for now):
-                *   Privacy Policy (Icon: `Icons.policy`) - Should open a URL or display static text.
-                *   Terms of Service (Icon: `Icons.description`) - Should open a URL or display static text.
-        *   **About:**
-            *   Title: "About This App"
-            *   Icon: `Icons.info`
-            *   Description: (Optional) "App version and legal notices."
-            *   Sub-options (can be on a new screen, or simple actions for now):
-                *   App Version (Icon: `Icons.mobile_friendly`) - Display current app version.
-                *   Legal Notices (Icon: `Icons.gavel`) - Show open-source licenses, copyright.
+2.  **Create `lib/views/account_profile_view.dart`:**
+    *   Implement a new `StatelessWidget` named `AccountProfileView`.
+    *   **UI:**
+        *   `Scaffold` with an `AppBar` titled "Account & Profile".
+        *   Use a `Consumer` or `Selector` with `AuthProvider` to display the current user's email. If `AuthProvider` doesn't expose `currentUser.email`, ensure it does.
+        *   `ListTile` for displaying the user's email:
+            ```dart
+            ListTile(
+              leading: Icon(Icons.email),
+              title: Text('Email'),
+              subtitle: Text(userEmail ?? 'Not available'), // Replace userEmail with actual data
+            ),
+            ```
+        *   `ListTile` for "Change Password":
+            *   Title: "Change Password"
+            *   Icon: `Icons.lock`
+            *   `onTap` should navigate to `ChangePasswordView`.
+        *   `ListTile` for "Delete Account":
+            *   Title: "Delete Account"
+            *   Icon: `Icons.delete_forever`
+            *   `onTap` should navigate to `DeleteAccountView`.
 
-2.  **Integrate Navigation Drawer in `lib/main.dart` (or common parent widget):**
-    *   Identify the main `Scaffold` widget that serves as the root for your top-level views.
-    *   Add a `Drawer` widget to this `Scaffold`.
-    *   The `Drawer` should contain a `ListView` of navigation items.
-    *   Include at least one `ListTile` for "Settings" that navigates to the `SettingsView` when tapped.
-    *   Ensure the Navigation Drawer can be opened by a `Builder` widget that provides `Scaffold.of(context).openDrawer()` when an `IconButton` (e.g., `Icons.menu`) in the `AppBar` is pressed.
+3.  **Create `lib/views/change_password_view.dart`:**
+    *   Implement a new `StatefulWidget` named `ChangePasswordView`.
+    *   **UI:**
+        *   `Scaffold` with an `AppBar` titled "Change Password".
+        *   Use `Consumer` or `Selector` with `AuthProvider` to determine if the user is a direct sign-up.
+        *   **Conditional Display:**
+            *   If user is a direct sign-up:
+                *   Two `TextFormField` widgets for "New Password" and "Confirm New Password".
+                *   A "Save" `ElevatedButton`.
+            *   If not a direct sign-up:
+                *   A `Text` widget displaying: "Password changes are managed by your external provider."
+    *   **Placeholder Logic:**
+        *   For the "Save" button `onPressed`:
+            *   Add basic validation (passwords match, not empty).
+            *   Call a placeholder method in `AuthProvider` (e.g., `_authProvider.updatePassword(newPassword)`).
+            *   Show `Snackbar.showSuccess()` or `Snackbar.showError()`.
+            *   Navigate back on success.
 
-3.  **Conditional Accessibility:**
-    *   The Navigation Drawer icon (hamburger menu) should be present in the `AppBar` of your top-level views (e.g., `unified_agenda_view.dart`, `todays_snapshot_view.dart`, `tasks_list_view.dart`, `appointments_list_view.dart`).
-    *   The Navigation Drawer icon should **not** be present in the `AppBar` of transactional or form-based screens (e.g., `appointment_form_view.dart`, `task_add_view.dart`, `login_view.dart`, `signup_screen.dart`, `email_verification_view.dart`). These screens should typically only have a back button.
-    *   You might need to adjust the `AppBar` implementations in these various view files to conditionally show/hide the leading `IconButton` based on whether they are top-level or transactional. A common pattern is to check `ModalRoute.of(context)?.canPop` to determine if a back button is appropriate, or to pass a flag to your custom `AppBar` widget.
+4.  **Create `lib/views/delete_account_view.dart`:**
+    *   Implement a new `StatefulWidget` named `DeleteAccountView`.
+    *   **UI:**
+        *   `Scaffold` with an `AppBar` titled "Delete Account".
+        *   A `Text` widget with a prominent warning message about irreversible data deletion.
+        *   A `CheckboxListTile` for "I understand this action is permanent and cannot be undone."
+        *   An `ElevatedButton` for "Confirm Deletion" (initially disabled, enabled when checkbox is ticked).
+        *   **Conditional (Optional but recommended):** If it's a direct sign-up, you *could* include a `TextFormField` to re-enter the current password for confirmation (though we decided to simplify and rely on the active session for external, it's a good security measure for direct). For this prompt, let's omit the password re-entry for simplicity, making the checkbox the primary gate.
+    *   **Placeholder Logic:**
+        *   Manage the checkbox state to enable/disable the "Confirm Deletion" button.
+        *   For the "Confirm Deletion" button `onPressed`:
+            *   Call a placeholder method in `AuthProvider` (e.g., `_authProvider.deleteAccount()`).
+            *   On success:
+                *   Call `LogoutService.logout()`.
+                *   Show `Snackbar.showSuccess()`.
+                *   Navigate to `LoginScreen` or `WelcomeView` (ensure `logout_service` handles this redirection).
+            *   On error:
+                *   Show `Snackbar.showError()`.
+
+5.  **Update `lib/providers/auth_provider.dart`:**
+    *   Add a property or method to expose if the user is a direct sign-up (e.g., `bool get isDirectSignIn => currentUser?.appMetadata?['provider'] == 'email';`).
+    *   Add a method `Future<void> updatePassword(String newPassword)` that uses Supabase's `auth.updateUser(password: newPassword)`.
+    *   Add a method `Future<void> deleteAccount()` that uses Supabase's `auth.deleteUser()` and handles any client-side data cleanup/state reset via `LogoutService`.
+
+6.  **Ensure `lib/services/logout_service.dart` handles full logout and navigation.**
+
+7.  **Integrate `lib/utils/snackbar.dart` for user feedback.**
 
 **Important Considerations:**
-*   Use standard Flutter widgets and follow best practices for UI layout and navigation.
-*   Ensure the design is clean and minimal, consistent with the existing app's aesthetic.
-*   For placeholder actions (e.g., opening a URL for Privacy Policy), you can use `url_launcher` package if available, or simply print to console for now.
-*   Focus on the structure and navigation; actual implementation of sub-setting logic can be deferred.
+*   Use `Provider` for state management (`AuthProvider`).
+*   Handle loading states and errors gracefully (e.g., disable buttons, show progress indicators).
+*   Focus on creating the structure and wiring for now; robust error handling, detailed validation messages, and deep integration with Supabase (especially RLS for deletion) can be refined later but the method calls should be present.
+*   For navigation, use `Navigator.of(context).push()` for new screens and `Navigator.of(context).pop()` to go back. After account deletion, the navigation should effectively clear the stack and go to the login/welcome screen.

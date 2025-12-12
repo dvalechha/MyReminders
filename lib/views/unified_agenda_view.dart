@@ -7,6 +7,7 @@ import '../providers/task_provider.dart';
 import '../models/subscription.dart';
 import '../models/appointment.dart';
 import '../models/task.dart';
+import '../widgets/app_navigation_drawer.dart';
 
 class UnifiedAgendaView extends StatefulWidget {
   const UnifiedAgendaView({super.key});
@@ -27,7 +28,14 @@ class _UnifiedAgendaViewState extends State<UnifiedAgendaView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Upcoming Agenda'),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
       ),
+      drawer: const AppNavigationDrawer(),
       body: items.isEmpty
           ? const Center(child: Text('No upcoming items'))
           : ListView.separated(
