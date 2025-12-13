@@ -286,22 +286,70 @@ class AuthProvider extends ChangeNotifier {
 
   /// Delete the current user's account. This will attempt to delete via Supabase
   /// and then perform local cleanup via LogoutService.
+  /// The edge function will delete the user and all related data:
+  /// - subscriptions
+  /// - appointments
+  /// - tasks
+  /// - user_profile
   Future<void> deleteAccount(BuildContext context) async {
     try {
       final supabase = Supabase.instance.client;
-      // Attempt to call an optional edge-function or RPC named 'delete_account'
-      // which should perform server-side deletion using a service role.
+      
+      // Refresh the session to ensure we have a valid, non-expired token
       try {
-        await supabase.functions.invoke('delete_account');
-      } catch (_) {
-        // If no function exists or it fails, continue to logout locally.
+        await supabase.auth.refreshSession();
+      } catch (e) {
+        debugPrint('Warning: Could not refresh session: $e');
+        // Continue anyway - the current session might still be valid
+      }
+      
+      // Ensure we have a valid session before calling the function
+      final session = supabase.auth.currentSession;
+      if (session == null) {
+        throw Exception('No active session. Please sign in again.');
+      }
+      
+      // Get the access token for the Authorization header
+      final accessToken = session.accessToken;
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Invalid session token. Please sign in again.');
+      }
+      
+      debugPrint('Calling delete-account function with token (length: ${accessToken.length})');
+      
+      // Call the delete-account edge function which will delete the user
+      // and all related data (subscriptions, appointments, tasks, user_profile)
+      try {
+        final response = await supabase.functions.invoke(
+          'delete-account',
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+          },
+        );
+        
+        // Check if the response indicates an error
+        // Supabase functions.invoke returns a FunctionResponse
+        if (response.status != 200) {
+          final errorData = response.data;
+          final errorMessage = errorData is Map 
+              ? (errorData['error'] ?? errorData['details'] ?? 'Failed to delete account')
+              : 'Failed to delete account';
+          throw Exception(errorMessage);
+        }
+        
+        debugPrint('Account deletion successful: ${response.data}');
+      } catch (e) {
+        // If the edge function fails, throw the error so the UI can display it
+        debugPrint('Error calling delete-account function: $e');
+        rethrow;
       }
 
       // Perform client-side cleanup and logout
       // ignore: use_build_context_synchronously
       await LogoutService.instance.logout(context);
     } catch (e) {
-      throw Exception('Failed to delete account: $e');
+      debugPrint('Error in deleteAccount: $e');
+      rethrow;
     }
   }
 
