@@ -19,7 +19,6 @@ This document captures ongoing ideas and decisions about the Personal Assistant 
 3. Assistant shows a filled confirmation card so users only tweak errors instead of completing blank forms.
 4. Confirmed entries sync to the internal store and external calendars (Google/Microsoft first; iCloud via CalDAV when feasible).
 5. Voice commands: platform speech-to-text (Android SpeechRecognizer, iOS SFSpeechRecognizer) feeds the same parser, with fallbacks when transcription confidence is low.
-6. LLM integration is optional; start with deterministic logic and add a model later for edge cases.
 
 ### MVP Feature 2 Details
 1. **Dynamic Welcome Screen:** The main view will serve as a dynamic dashboard, replacing the static welcome/input screen.
@@ -34,9 +33,17 @@ This document captures ongoing ideas and decisions about the Personal Assistant 
 ## Post-MVP Ideas
 1. Multi-step automation workflows and routines.
 2. Intelligent recommendations based on user habits (meeting times, focus blocks).
-3. Advanced integrations (Slack, project management tools, smart home, finance).
-4. Proactive alerts such as travel time estimates or deadline warnings.
-5. Voice assistant compatibility with handoff between devices.
-6. Shared assistant spaces for households or teams.
-7. Insights dashboard with productivity analytics and configurable goals.
-8. Plugin/extension ecosystem for third-party capabilities.
+3. Proactive alerts such as travel time estimates or deadline warnings.
+4. Voice assistant compatibility with handoff between devices.
+5. Shared assistant spaces for households or teams.
+6. Insights dashboard with productivity analytics and configurable goals.
+7. Plugin/extension ecosystem for third-party capabilities.
+
+## Pro Features
+1. LLM Integration: Advanced natural language understanding and generation for edge cases, complex queries, and enhanced conversational capabilities.
+2. Advanced Notification Controls:
+    - Do Not Disturb/Quiet Hours: User-defined periods to silence specific or all app notifications.
+    - Notification Channels: Granular control over notification types and their delivery methods.
+3. Integrations:
+    - Mainstream Calendar/Email Providers (e.g., Google, Microsoft Outlook, iCloud via CalDAV): For data sync beyond basic functionality.
+    - Advanced Integrations (e.g., Slack, project management tools, smart home, finance): For connecting with a wider ecosystem of services.

@@ -27,7 +27,6 @@ class TaskFormView extends StatefulWidget {
 class _TaskFormViewState extends State<TaskFormView> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
-  final _categoryController = TextEditingController();
   final _notesController = TextEditingController();
 
   DateTime? _selectedDueDate;
@@ -58,7 +57,6 @@ class _TaskFormViewState extends State<TaskFormView> {
   void _loadTaskData() {
     final task = widget.task!;
     _titleController.text = task.title;
-    _categoryController.text = task.category ?? '';
     _notesController.text = task.notes ?? '';
     _selectedDueDate = task.dueDate;
     _selectedPriority = task.priority;
@@ -68,7 +66,6 @@ class _TaskFormViewState extends State<TaskFormView> {
   @override
   void dispose() {
     _titleController.dispose();
-    _categoryController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -149,9 +146,8 @@ class _TaskFormViewState extends State<TaskFormView> {
     final task = Task(
       id: widget.task?.id,
       title: _titleController.text.trim(),
-      category: _categoryController.text.trim().isEmpty
-          ? null
-          : _categoryController.text.trim(),
+      // Preserve existing category id if editing; new tasks start without a category
+      category: widget.task?.category,
       dueDate: _selectedDueDate,
       priority: _selectedPriority,
       notes: _notesController.text.trim().isEmpty
@@ -269,14 +265,7 @@ class _TaskFormViewState extends State<TaskFormView> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _categoryController,
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      border: OutlineInputBorder(),
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                    ),
-                  ),
+                  // Category input removed; category id is retained in data model
                   const SizedBox(height: 16),
                   ListTile(
                     title: const Text('Due Date & Time *'),

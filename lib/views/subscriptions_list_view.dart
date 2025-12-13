@@ -6,6 +6,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../providers/subscription_provider.dart';
 import '../providers/navigation_model.dart';
 import '../models/subscription.dart';
+import '../widgets/app_navigation_drawer.dart';
 import 'subscription_form_view.dart';
 
 class MonthlySpend {
@@ -113,11 +114,14 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
           return Scaffold(
             appBar: AppBar(
               title: const Text('My Subscriptions'),
-              leading: IconButton(
-                icon: const Icon(Icons.home),
-                onPressed: () => navigationModel.popToRoot(),
+              leading: Builder(
+                builder: (context) => IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
               ),
             ),
+            drawer: const AppNavigationDrawer(),
             body: const Center(child: CircularProgressIndicator()),
           );
         }
@@ -128,9 +132,11 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('My Subscriptions'),
-            leading: IconButton(
-              icon: const Icon(Icons.home),
-              onPressed: () => navigationModel.popToRoot(),
+            leading: Builder(
+              builder: (context) => IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
             ),
             actions: [
               IconButton(
@@ -180,6 +186,7 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
               ),
             ),
           ),
+          drawer: const AppNavigationDrawer(),
           body: provider.subscriptions.isEmpty
               ? _buildEmptyState(context)
               : _buildSubscriptionsList(context, provider, filteredSubscriptions),

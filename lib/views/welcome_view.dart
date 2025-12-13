@@ -9,6 +9,7 @@ import '../widgets/pulsing_gradient_placeholder.dart';
 import '../widgets/default_welcome_view.dart';
 import '../widgets/help_suggestion_view.dart';
 import '../widgets/todays_snapshot_view.dart';
+import '../widgets/app_navigation_drawer.dart';
 import '../utils/natural_language_parser.dart';
 import '../services/intent_parser_service.dart';
 import '../models/parsed_intent.dart';
@@ -20,6 +21,7 @@ import 'task_form_view.dart';
 import 'subscriptions_list_view.dart';
 import 'appointments_list_view.dart';
 import 'tasks_list_view.dart';
+import 'settings_view.dart';
 
 class WelcomeView extends StatefulWidget {
   const WelcomeView({super.key});
@@ -542,6 +544,18 @@ class _WelcomeViewState extends State<WelcomeView> {
     
     return Scaffold(
       resizeToAvoidBottomInset: true,
+      appBar: AppBar(
+        title: const Text('MyReminder'),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+      ),
+      drawer: const AppNavigationDrawer(),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20.0),

@@ -1,50 +1,102 @@
-**Title:** Refine Natural Language Parser for Smarter Appointment Creation
+**Title:** Implement Account & Profile, Change Password, and Delete Account Views
 
 **Context:**
-You are GitHub Copilot, an expert Flutter/Dart developer. Your task is to refine the logic within the `NaturalLanguageParser` to be more intelligent and accurate when parsing appointment details from a user's free-text input. The current implementation often misidentifies the appointment's title and location, requiring the user to manually correct the fields.
+You are GitHub Copilot, an expert Flutter/Dart developer. Your task is to implement the "Account & Profile" section within the Settings menu, including the "Change Password" and "Delete Account" functionalities. These implementations should be minimal, functional, and adhere to the specified logic for direct vs. external sign-ups.
 
-**Affected File:**
-*   `lib/utils/natural_language_parser.dart`
+**Affected Files (Likely):**
+*   `lib/views/settings_view.dart` (to add navigation to AccountProfileView)
+*   `lib/views/account_profile_view.dart` (new file)
+*   `lib/views/change_password_view.dart` (new file)
+*   `lib/views/delete_account_view.dart` (new file)
+*   `lib/providers/auth_provider.dart` (to add password update and account deletion methods)
+*   `lib/services/logout_service.dart` (if not already present, ensure it handles full logout/state reset)
+*   `lib/utils/snackbar.dart` (for user feedback)
 
-**The Problem (Use Case):**
-
-When a user inputs the following text:
-`Create an appointment to meet Dr Smith at 5pm tomorrow`
-
-The parser currently produces this incorrect result:
-*   **Title:** `to meet dr smith`
-*   **Location:** `5pm tomorrow`
-
-**The Goal (Desired Result):**
-
-The parser should be smart enough to produce this clean and accurate result:
-*   **Title:** `Meet Dr Smith` (or simply `Dr Smith`)
-*   **Location:** `null` (or an empty string)
+**Goal:**
+Implement the three specified views with their core UI and a placeholder for their logic, respecting authentication methods for password changes and ensuring robust account deletion.
 
 **Instructions:**
 
-Your task is to modify the `parse` method within `lib/utils/natural_language_parser.dart` to implement the following improvements:
+1.  **Update `lib/views/settings_view.dart`:**
+    *   Locate the "Account & Profile" `ListTile`.
+    *   Modify its `onTap` property to navigate to the new `AccountProfileView` (you'll create this next).
+        ```dart
+        // Example for onTap
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(builder: (context) => AccountProfileView()));
+        },
+        ```
 
-1.  **Improve Title Extraction Logic:**
-    *   First, identify and extract the date/time phrases (e.g., "at 5pm tomorrow") from the input string and set them aside.
-    *   From the remaining text, identify and remove common conversational "filler" or "action" phrases. Create a list of these phrases to filter out, which should include (but not be limited to):
-        *   `"appointment to meet"`
-        *   `"appointment with"`
-        *   `"meeting with"`
-        *   `"to meet"`
-        *   `"with"`
-    *   The text that remains after this filtering is the core subject of the appointment (e.g., `Dr Smith`).
-    *   Set this cleaned-up subject as the `title`. You can optionally capitalize it or prepend a standard verb like "Meet" for consistency.
+2.  **Create `lib/views/account_profile_view.dart`:**
+    *   Implement a new `StatelessWidget` named `AccountProfileView`.
+    *   **UI:**
+        *   `Scaffold` with an `AppBar` titled "Account & Profile".
+        *   Use a `Consumer` or `Selector` with `AuthProvider` to display the current user's email. If `AuthProvider` doesn't expose `currentUser.email`, ensure it does.
+        *   `ListTile` for displaying the user's email:
+            ```dart
+            ListTile(
+              leading: Icon(Icons.email),
+              title: Text('Email'),
+              subtitle: Text(userEmail ?? 'Not available'), // Replace userEmail with actual data
+            ),
+            ```
+        *   `ListTile` for "Change Password":
+            *   Title: "Change Password"
+            *   Icon: `Icons.lock`
+            *   `onTap` should navigate to `ChangePasswordView`.
+        *   `ListTile` for "Delete Account":
+            *   Title: "Delete Account"
+            *   Icon: `Icons.delete_forever`
+            *   `onTap` should navigate to `DeleteAccountView`.
 
-2.  **Improve Location Extraction Logic:**
-    *   The location should **only** be populated if there is an explicit location keyword present in the input string.
-    *   Define a list of location keywords to look for, such as:
-        *   `"at"`
-        *   `"in"`
-    *   The parser should check if one of these keywords is followed by a word or phrase that is **not** part of a date or time expression.
-    *   In the example `"Create an appointment to meet Dr Smith at 5pm tomorrow"`, the word "at" is part of the time expression, not a location indicator. Therefore, the `location` field should be left `null`.
-    *   For an input like `"Appointment with Dr Smith at the Clinic"`, the parser should correctly identify `"the Clinic"` as the location.
+3.  **Create `lib/views/change_password_view.dart`:**
+    *   Implement a new `StatefulWidget` named `ChangePasswordView`.
+    *   **UI:**
+        *   `Scaffold` with an `AppBar` titled "Change Password".
+        *   Use `Consumer` or `Selector` with `AuthProvider` to determine if the user is a direct sign-up.
+        *   **Conditional Display:**
+            *   If user is a direct sign-up:
+                *   Two `TextFormField` widgets for "New Password" and "Confirm New Password".
+                *   A "Save" `ElevatedButton`.
+            *   If not a direct sign-up:
+                *   A `Text` widget displaying: "Password changes are managed by your external provider."
+    *   **Placeholder Logic:**
+        *   For the "Save" button `onPressed`:
+            *   Add basic validation (passwords match, not empty).
+            *   Call a placeholder method in `AuthProvider` (e.g., `_authProvider.updatePassword(newPassword)`).
+            *   Show `Snackbar.showSuccess()` or `Snackbar.showError()`.
+            *   Navigate back on success.
 
-**Summary of Desired Behavior:**
+4.  **Create `lib/views/delete_account_view.dart`:**
+    *   Implement a new `StatefulWidget` named `DeleteAccountView`.
+    *   **UI:**
+        *   `Scaffold` with an `AppBar` titled "Delete Account".
+        *   A `Text` widget with a prominent warning message about irreversible data deletion.
+        *   A `CheckboxListTile` for "I understand this action is permanent and cannot be undone."
+        *   An `ElevatedButton` for "Confirm Deletion" (initially disabled, enabled when checkbox is ticked).
+        *   **Conditional (Optional but recommended):** If it's a direct sign-up, you *could* include a `TextFormField` to re-enter the current password for confirmation (though we decided to simplify and rely on the active session for external, it's a good security measure for direct). For this prompt, let's omit the password re-entry for simplicity, making the checkbox the primary gate.
+    *   **Placeholder Logic:**
+        *   Manage the checkbox state to enable/disable the "Confirm Deletion" button.
+        *   For the "Confirm Deletion" button `onPressed`:
+            *   Call a placeholder method in `AuthProvider` (e.g., `_authProvider.deleteAccount()`).
+            *   On success:
+                *   Call `LogoutService.logout()`.
+                *   Show `Snackbar.showSuccess()`.
+                *   Navigate to `LoginScreen` or `WelcomeView` (ensure `logout_service` handles this redirection).
+            *   On error:
+                *   Show `Snackbar.showError()`.
 
-The parser should no longer literally copy chunks of the input string into the `title` and `location` fields. It must be updated to intelligently dissect the user's command, discard conversational filler, and correctly distinguish between the subject, time, and a potential location. The result should be a significantly cleaner and more accurate pre-filled form in the UI.
+5.  **Update `lib/providers/auth_provider.dart`:**
+    *   Add a property or method to expose if the user is a direct sign-up (e.g., `bool get isDirectSignIn => currentUser?.appMetadata?['provider'] == 'email';`).
+    *   Add a method `Future<void> updatePassword(String newPassword)` that uses Supabase's `auth.updateUser(password: newPassword)`.
+    *   Add a method `Future<void> deleteAccount()` that uses Supabase's `auth.deleteUser()` and handles any client-side data cleanup/state reset via `LogoutService`.
+
+6.  **Ensure `lib/services/logout_service.dart` handles full logout and navigation.**
+
+7.  **Integrate `lib/utils/snackbar.dart` for user feedback.**
+
+**Important Considerations:**
+*   Use `Provider` for state management (`AuthProvider`).
+*   Handle loading states and errors gracefully (e.g., disable buttons, show progress indicators).
+*   Focus on creating the structure and wiring for now; robust error handling, detailed validation messages, and deep integration with Supabase (especially RLS for deletion) can be refined later but the method calls should be present.
+*   For navigation, use `Navigator.of(context).push()` for new screens and `Navigator.of(context).pop()` to go back. After account deletion, the navigation should effectively clear the stack and go to the login/welcome screen.
