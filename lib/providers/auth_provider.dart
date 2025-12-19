@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/logout_service.dart';
 import '../repositories/user_profile_repository.dart';
 
@@ -9,6 +10,10 @@ class AuthProvider extends ChangeNotifier {
   User? _user;
   bool _isLoading = true;
   StreamSubscription<AuthState>? _authStateSubscription;
+  bool _isPasswordResetFlow = false;
+  bool _isCheckingPasswordReset = false;
+  DateTime? _sessionCreatedAt;
+  bool? _previousEmailVerified;
 
   User? get user => _user;
   bool get isLoading => _isLoading;
@@ -19,33 +24,190 @@ class AuthProvider extends ChangeNotifier {
     _initializeAuth();
   }
 
-  void _initializeAuth() {
+  Future<void> _initializeAuth() async {
     final supabase = Supabase.instance.client;
 
-    // Get initial session
     _user = supabase.auth.currentUser;
+    _previousEmailVerified = _user?.emailConfirmedAt != null;
+    if (_user != null) {
+      _sessionCreatedAt = DateTime.now();
+      // Await the email verification check to ensure sign out happens before listener setup
+      await _checkEmailVerificationOnInit();
+    }
+
     _isLoading = false;
     notifyListeners();
 
-    // Listen to auth state changes and store subscription
-    _authStateSubscription = supabase.auth.onAuthStateChange.listen((event) {
+    _authStateSubscription = supabase.auth.onAuthStateChange.listen((event) async {
       debugPrint('Auth state changed: ${event.event}, Session: ${event.session != null}');
+      debugPrint('Event type: ${event.event}, Previous user: ${_user?.email}, Previous email verified: $_previousEmailVerified');
+
+      final hadSession = _user != null;
+      final previousEmailVerified = _previousEmailVerified;
       _user = event.session?.user;
+      final currentEmailVerified = _user?.emailConfirmedAt != null;
       _isLoading = false;
-      notifyListeners();
-      
-      // Handle Google auth callback - create/update profile if needed
+
+      debugPrint('Current user: ${_user?.email}, Current email verified: $currentEmailVerified');
+
       if (event.session != null) {
+        _sessionCreatedAt = DateTime.now();
         final user = event.session!.user;
-        // Check if this is a Google OAuth user (has provider metadata)
+
         if (user.appMetadata['provider'] == 'google') {
           _handleGoogleAuthCallback();
+          _isPasswordResetFlow = false;
+          clearPasswordResetFlag();
+          _previousEmailVerified = currentEmailVerified;
+        } else {
+          final prefs = await SharedPreferences.getInstance();
+          final justSignedUp = prefs.getBool('just_signed_up') ?? false;
+          final signupEmail = prefs.getString('signup_email');
+
+          debugPrint('Email verification check - justSignedUp: $justSignedUp, signupEmail: $signupEmail');
+          debugPrint('Email verification check - previous: $previousEmailVerified, current: $currentEmailVerified');
+          debugPrint('Email verification check - hadSession: $hadSession, userEmail: ${user.email}');
+          debugPrint('Email verification check - event: ${event.event}');
+
+          if (justSignedUp &&
+              signupEmail != null &&
+              signupEmail == user.email &&
+              currentEmailVerified == true) {
+            if (!hadSession || previousEmailVerified == false || event.event == AuthChangeEvent.tokenRefreshed) {
+              debugPrint('*** Email verification detected after signup - signing out user ***');
+
+              await prefs.remove('just_signed_up');
+              await prefs.remove('signup_email');
+              await prefs.setBool('email_verified_success', true);
+
+              final supabase = Supabase.instance.client;
+              await supabase.auth.signOut();
+
+              _user = null;
+              _previousEmailVerified = null;
+              _isLoading = false;
+              notifyListeners();
+
+              debugPrint('User signed out after email verification - will need to log in');
+              return;
+            }
+          }
+
+          _previousEmailVerified = currentEmailVerified;
+          _isCheckingPasswordReset = true;
+          notifyListeners();
+
+          checkPasswordResetFlow().then((isReset) {
+            _isPasswordResetFlow = isReset;
+            _isCheckingPasswordReset = false;
+            if (isReset) {
+              debugPrint('Password reset flow detected in auth listener - showing reset screen');
+            } else {
+              debugPrint('Password reset flow check completed - not a reset flow');
+              clearPasswordResetFlag();
+            }
+            notifyListeners();
+          }).catchError((e) {
+            debugPrint('Error checking password reset in listener: $e');
+            _isCheckingPasswordReset = false;
+            _isPasswordResetFlow = false;
+            clearPasswordResetFlag();
+            notifyListeners();
+          });
         }
+      } else {
+        _isPasswordResetFlow = false;
+        _sessionCreatedAt = null;
+        _previousEmailVerified = null;
       }
+
+      notifyListeners();
     });
 
     // Register subscription with LogoutService so it can be cancelled on logout
     LogoutService.instance.setAuthStateSubscription(_authStateSubscription);
+
+    _checkPasswordResetOnInit();
+  }
+
+  Future<void> _checkEmailVerificationOnInit() async {
+    await checkAndHandleEmailVerification(source: 'init');
+  }
+
+  /// Check if user just verified email after signup and sign them out to require re-login.
+  /// Returns true if user was signed out, false otherwise.
+  /// This can be called from anywhere (init, app resume, etc.)
+  Future<bool> checkAndHandleEmailVerification({String source = 'unknown'}) async {
+    // Refresh user state first to get latest emailConfirmedAt
+    final supabase = Supabase.instance.client;
+    _user = supabase.auth.currentUser;
+    
+    if (_user == null) {
+      debugPrint('[$source] No user to check for email verification');
+      return false;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final justSignedUp = prefs.getBool('just_signed_up') ?? false;
+      final signupEmail = prefs.getString('signup_email');
+      final currentEmailVerified = _user?.emailConfirmedAt != null;
+
+      debugPrint('[$source] Email verification check - justSignedUp: $justSignedUp, signupEmail: $signupEmail');
+      debugPrint('[$source] Email verification check - userEmail: ${_user?.email}, emailVerified: $currentEmailVerified');
+
+      if (justSignedUp &&
+          signupEmail != null &&
+          signupEmail == _user?.email &&
+          currentEmailVerified == true) {
+        debugPrint('*** [$source] Email verification detected - signing out user ***');
+
+        await prefs.remove('just_signed_up');
+        await prefs.remove('signup_email');
+        await prefs.setBool('email_verified_success', true);
+
+        await supabase.auth.signOut();
+
+        _user = null;
+        _previousEmailVerified = null;
+        _isLoading = false;
+        notifyListeners();
+
+        debugPrint('[$source] User signed out after email verification - will need to log in');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[$source] Error checking email verification: $e');
+      return false;
+    }
+  }
+
+  /// Check if we're in a password reset flow
+  bool get isPasswordResetFlow => _isPasswordResetFlow;
+
+  /// Check if we're currently checking for password reset
+  bool get isCheckingPasswordReset => _isCheckingPasswordReset;
+
+  /// Get when the current session was created
+  DateTime? get sessionCreatedAt => _sessionCreatedAt;
+
+  /// Set password reset flow flag
+  void setPasswordResetFlow(bool value) {
+    _isPasswordResetFlow = value;
+    notifyListeners();
+  }
+
+  /// Check for password reset token on app initialization
+  Future<void> _checkPasswordResetOnInit() async {
+    try {
+      final shouldShowReset = await checkPasswordResetFlow();
+      _isPasswordResetFlow = shouldShowReset;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error checking password reset: $e');
+      _isPasswordResetFlow = false;
+    }
   }
 
   @override
@@ -62,14 +224,13 @@ class AuthProvider extends ChangeNotifier {
     debugPrint('AuthProvider: User state cleared');
   }
 
-  /// Refresh the current session - useful after OAuth callback
+  /// Refresh the current session
   Future<void> refreshSession() async {
     try {
       _isLoading = true;
       notifyListeners();
-      
+
       final supabase = Supabase.instance.client;
-      // Use currentSession property instead of getSession() method
       final session = supabase.auth.currentSession;
       final userEmail = session != null ? (session.user.email ?? 'null') : 'null';
       debugPrint('Refreshing session: ${session != null}, User: $userEmail');
@@ -80,7 +241,6 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('Error refreshing session: $e');
       _isLoading = false;
       notifyListeners();
-      // Session refresh failed, but don't throw - let the listener handle it
     }
   }
 
@@ -90,37 +250,35 @@ class AuthProvider extends ChangeNotifier {
         email: email,
         password: password,
       );
-      // Immediately update the user state from the current session
-      // This ensures AuthGate reacts immediately without waiting for the listener
       final supabase = Supabase.instance.client;
       final session = supabase.auth.currentSession;
       if (session != null) {
         _user = session.user;
         _isLoading = false;
+
+        await clearPasswordResetFlag();
+
         notifyListeners();
         debugPrint('Sign in successful: User ${_user?.email}');
-        
-        // Ensure user profile exists (for existing users who might not have profile)
+
         if (_user != null && _user!.email != null) {
           try {
             final repository = UserProfileRepository();
             final existingProfile = await repository.getById(_user!.id);
             if (existingProfile == null) {
-              // Create profile with email as fallback display name
               await repository.getOrCreateForCurrentUser(
                 email: _user!.email!,
                 displayName: _user!.email!.split('@')[0],
               );
             }
           } catch (e) {
-            // Silently ignore profile creation errors if table doesn't exist
-            // This is expected if the user_profile table hasn't been created in Supabase
+            // Silently ignore profile creation errors
           }
         }
       } else {
-        // If session is null, wait a bit for the auth state change event
         await Future.delayed(const Duration(milliseconds: 200));
         await refreshSession();
+        await clearPasswordResetFlag();
       }
     } catch (e) {
       throw Exception('Failed to sign in: $e');
@@ -130,18 +288,12 @@ class AuthProvider extends ChangeNotifier {
   Future<void> signInWithGoogle() async {
     try {
       final redirectUrl = _getRedirectUrl();
-      
-      // Use Supabase's signInWithOAuth which handles the OAuth flow
-      // The method will return a bool indicating if the OAuth flow was initiated
-      // We need to let Supabase handle the URL construction with proper PKCE and state
+
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: redirectUrl,
         authScreenLaunchMode: LaunchMode.externalApplication,
       );
-      // Auth state change will be handled by the listener when user returns to app
-      // Profile creation will be handled in _handleGoogleAuthCallback
-      // Note: Supabase handles opening the browser automatically with authScreenLaunchMode
     } catch (e) {
       throw Exception('Failed to sign in with Google: $e');
     }
@@ -155,52 +307,43 @@ class AuthProvider extends ChangeNotifier {
         return;
       }
 
-      // Derive display name from Google profile metadata
       String displayName = _deriveDisplayNameFromGoogle(user);
 
-      // Create or update user profile
       final repository = UserProfileRepository();
       await repository.getOrCreateForCurrentUser(
         email: user.email!,
         displayName: displayName,
       );
-      // Profile created/updated successfully
     } catch (e) {
-      // Silently ignore profile creation errors if table doesn't exist
-      // This is expected if the user_profile table hasn't been created in Supabase
-      // Don't throw - profile can be created later
+      // Silently ignore profile creation errors
     }
   }
 
   /// Derive display name from Google user metadata
   String _deriveDisplayNameFromGoogle(User user) {
     final metadata = user.userMetadata;
-    
-    // Try full_name first
+
     if (metadata != null && metadata['full_name'] != null) {
       final fullName = metadata['full_name'] as String;
       if (fullName.isNotEmpty) {
         return fullName;
       }
     }
-    
-    // Try name
+
     if (metadata != null && metadata['name'] != null) {
       final name = metadata['name'] as String;
       if (name.isNotEmpty) {
         return name;
       }
     }
-    
-    // Fallback: email without domain part
+
     if (user.email != null) {
       final emailParts = user.email!.split('@');
       if (emailParts.isNotEmpty) {
         return emailParts[0];
       }
     }
-    
-    // Last resort: return "User"
+
     return 'User';
   }
 
@@ -211,8 +354,17 @@ class AuthProvider extends ChangeNotifier {
         password: password,
         emailRedirectTo: _getRedirectUrl(),
       );
-      
-      // After successful signup, create user profile if displayName is provided
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('just_signed_up', true);
+      await prefs.setString('signup_email', email);
+
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      _previousEmailVerified = currentUser?.emailConfirmedAt != null;
+
+      debugPrint('Signup successful - flag set for email verification detection');
+      debugPrint('Signup email: $email, Email verified: $_previousEmailVerified');
+
       if (displayName != null && displayName.isNotEmpty) {
         final user = Supabase.instance.client.auth.currentUser;
         if (user != null && user.email != null) {
@@ -222,28 +374,20 @@ class AuthProvider extends ChangeNotifier {
               email: user.email!,
               displayName: displayName,
             );
-            // Profile created successfully
           } catch (e) {
-            // Silently ignore profile creation errors if table doesn't exist
-            // This is expected if the user_profile table hasn't been created in Supabase
-            // Don't throw - profile can be created later
+            // Silently ignore profile creation errors
           }
         }
       }
-      
-      // Auth state change will be handled by the listener
-      // Note: User will need to verify email before full access
     } catch (e) {
       throw Exception('Failed to sign up: $e');
     }
   }
 
   /// Sign out using the complete logout service
-  /// This handles all cleanup: listeners, state, cache, and Supabase session
   Future<void> signOut(BuildContext context) async {
     try {
       await LogoutService.instance.logout(context);
-      // Auth state change will be handled by AuthGate after logout completes
     } catch (e) {
       throw Exception('Failed to sign out: $e');
     }
@@ -262,6 +406,101 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Send password reset email to the specified email address
+  Future<void> resetPassword(String email) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final redirectUrl = _getRedirectUrl();
+
+      await supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo: redirectUrl,
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('password_reset_initiated', true);
+      await prefs.setString('password_reset_email', email);
+      await prefs.setInt('password_reset_timestamp', DateTime.now().millisecondsSinceEpoch);
+
+      debugPrint('Password reset email sent. Flag set for detection.');
+    } catch (e) {
+      throw Exception('Failed to send password reset email: $e');
+    }
+  }
+
+  Future<bool> checkPasswordResetFlow() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isInitiated = prefs.getBool('password_reset_initiated') ?? false;
+      final resetEmail = prefs.getString('password_reset_email');
+      final timestamp = prefs.getInt('password_reset_timestamp');
+
+      debugPrint('Checking password reset flow - initiated: $isInitiated, email: $resetEmail, timestamp: $timestamp');
+
+      if (!isInitiated) {
+        debugPrint('Password reset not initiated - returning false');
+        return false;
+      }
+
+      if (timestamp != null) {
+        final resetTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
+        final now = DateTime.now();
+        final difference = now.difference(resetTime);
+
+        debugPrint('Time since password reset initiated: ${difference.inMinutes} minutes');
+
+        if (difference.inHours > 1) {
+          debugPrint('Password reset flag expired - clearing');
+          await prefs.remove('password_reset_initiated');
+          await prefs.remove('password_reset_email');
+          await prefs.remove('password_reset_timestamp');
+          return false;
+        }
+      }
+
+      final supabase = Supabase.instance.client;
+      final session = supabase.auth.currentSession;
+
+      debugPrint('Current session exists: ${session != null}');
+
+      if (session != null) {
+        final userEmail = session.user.email;
+        debugPrint('Session user email: $userEmail, reset email: $resetEmail');
+
+        if (resetEmail != null && userEmail != null && userEmail == resetEmail) {
+          debugPrint('Password reset flow confirmed - email matches');
+          return true;
+        } else if (resetEmail == null || userEmail == null) {
+          debugPrint('Password reset flow confirmed - flag set and session exists');
+          return true;
+        } else {
+          debugPrint('Email mismatch - treating as normal login, not password reset');
+          return false;
+        }
+      }
+
+      debugPrint('Password reset flow check returning false');
+      return false;
+    } catch (e) {
+      debugPrint('Error checking password reset flow: $e');
+      return false;
+    }
+  }
+
+  /// Clear password reset flag (called after password is successfully reset)
+  Future<void> clearPasswordResetFlag() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('password_reset_initiated');
+      await prefs.remove('password_reset_email');
+      await prefs.remove('password_reset_timestamp');
+      _isPasswordResetFlow = false;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error clearing password reset flag: $e');
+    }
+  }
+
   /// Returns true when the user signed up directly with email/password
   bool get isDirectSignIn {
     try {
@@ -277,48 +516,36 @@ class AuthProvider extends ChangeNotifier {
     try {
       final supabase = Supabase.instance.client;
       await supabase.auth.updateUser(UserAttributes(password: newPassword));
-      // Refresh local user state
       await refreshSession();
+      await clearPasswordResetFlag();
     } catch (e) {
       throw Exception('Failed to update password: $e');
     }
   }
 
-  /// Delete the current user's account. This will attempt to delete via Supabase
-  /// and then perform local cleanup via LogoutService.
-  /// The edge function will delete the user and all related data:
-  /// - subscriptions
-  /// - appointments
-  /// - tasks
-  /// - user_profile
+  /// Delete the current user's account
   Future<void> deleteAccount(BuildContext context) async {
     try {
       final supabase = Supabase.instance.client;
-      
-      // Refresh the session to ensure we have a valid, non-expired token
+
       try {
         await supabase.auth.refreshSession();
       } catch (e) {
         debugPrint('Warning: Could not refresh session: $e');
-        // Continue anyway - the current session might still be valid
       }
-      
-      // Ensure we have a valid session before calling the function
+
       final session = supabase.auth.currentSession;
       if (session == null) {
         throw Exception('No active session. Please sign in again.');
       }
-      
-      // Get the access token for the Authorization header
+
       final accessToken = session.accessToken;
-      if (accessToken == null || accessToken.isEmpty) {
+      if (accessToken.isEmpty) {
         throw Exception('Invalid session token. Please sign in again.');
       }
-      
+
       debugPrint('Calling delete-account function with token (length: ${accessToken.length})');
-      
-      // Call the delete-account edge function which will delete the user
-      // and all related data (subscriptions, appointments, tasks, user_profile)
+
       try {
         final response = await supabase.functions.invoke(
           'delete-account',
@@ -326,25 +553,21 @@ class AuthProvider extends ChangeNotifier {
             'Authorization': 'Bearer $accessToken',
           },
         );
-        
-        // Check if the response indicates an error
-        // Supabase functions.invoke returns a FunctionResponse
+
         if (response.status != 200) {
           final errorData = response.data;
-          final errorMessage = errorData is Map 
+          final errorMessage = errorData is Map
               ? (errorData['error'] ?? errorData['details'] ?? 'Failed to delete account')
               : 'Failed to delete account';
           throw Exception(errorMessage);
         }
-        
+
         debugPrint('Account deletion successful: ${response.data}');
       } catch (e) {
-        // If the edge function fails, throw the error so the UI can display it
         debugPrint('Error calling delete-account function: $e');
         rethrow;
       }
 
-      // Perform client-side cleanup and logout
       // ignore: use_build_context_synchronously
       await LogoutService.instance.logout(context);
     } catch (e) {
@@ -354,12 +577,10 @@ class AuthProvider extends ChangeNotifier {
   }
 
   String _getRedirectUrl() {
-    // Read redirect URL from .env file
     final redirectUrl = dotenv.env['SUPABASE_REDIRECT_URL'];
     if (redirectUrl != null && redirectUrl.isNotEmpty) {
       return redirectUrl;
     }
-    // Fallback to default if not set in .env
     return 'myreminders://auth-callback';
   }
 }
