@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
+import '../utils/auth_error_helper.dart';
 import 'signup_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,10 +21,45 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    // Check if user just verified their email and show success message
+    _checkEmailVerificationSuccess();
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  /// Check if email was just verified and show success message
+  Future<void> _checkEmailVerificationSuccess() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final emailVerified = prefs.getBool('email_verified_success') ?? false;
+      
+      if (emailVerified && mounted) {
+        // Clear the flag
+        await prefs.remove('email_verified_success');
+        
+        // Show success message after the widget is built
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Email verified successfully! Please sign in to continue.'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking email verification success: $e');
+    }
   }
 
   Future<void> _handleEmailPasswordLogin() async {
@@ -38,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // Navigation will be handled by AuthGate when auth state changes
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = AuthErrorHelper.getErrorMessage(e);
       });
     } finally {
       if (mounted) {
@@ -61,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // Navigation will be handled by AuthGate when auth state changes
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = AuthErrorHelper.getErrorMessage(e);
       });
     } finally {
       if (mounted) {
@@ -126,7 +164,31 @@ class _LoginScreenState extends State<LoginScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Consumer<AuthProvider>(
+                      builder: (context, authProvider, child) {
+                        // Don't show "Forgot Password?" link if we're in a password reset flow
+                        // This prevents navigation to ForgotPasswordScreen when ResetPasswordScreen should be shown
+                        if (authProvider.isPasswordResetFlow) {
+                          return const SizedBox.shrink();
+                        }
+                        return TextButton(
+                          onPressed: _isLoading ? null : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ForgotPasswordScreen(),
+                              ),
+                            );
+                          },
+                          child: const Text('Forgot Password?'),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   if (_errorMessage != null)
                     Container(
                       padding: const EdgeInsets.all(12),

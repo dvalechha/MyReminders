@@ -60,6 +60,9 @@ dependencies:
   flutter_dotenv: ^5.1.0
   url_launcher: ^6.3.1
   package_info_plus: ^4.2.0
+  
+  # Local storage
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

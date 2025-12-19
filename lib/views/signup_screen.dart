@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../utils/auth_error_helper.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -59,7 +60,7 @@ class _SignupScreenState extends State<SignupScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = AuthErrorHelper.getErrorMessage(e);
       });
     } finally {
       if (mounted) {
@@ -82,7 +83,7 @@ class _SignupScreenState extends State<SignupScreen> {
       // Navigation will be handled by AuthGate when auth state changes
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = AuthErrorHelper.getErrorMessage(e);
       });
     } finally {
       if (mounted) {
