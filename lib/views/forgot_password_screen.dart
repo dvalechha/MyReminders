@@ -4,7 +4,10 @@ import '../providers/auth_provider.dart';
 import '../utils/auth_error_helper.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  const ForgotPasswordScreen({super.key, this.initialEmail});
+
+  /// Optional email to pre-fill the email field (e.g., from login screen)
+  final String? initialEmail;
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -16,6 +19,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _isLoading = false;
   String? _errorMessage;
   bool _isSuccess = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill email if provided from login screen
+    if (widget.initialEmail != null && widget.initialEmail!.trim().isNotEmpty) {
+      _emailController.text = widget.initialEmail!.trim();
+    }
+  }
 
   @override
   void dispose() {

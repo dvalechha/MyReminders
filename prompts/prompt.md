@@ -100,3 +100,41 @@ Implement the three specified views with their core UI and a placeholder for the
 *   Handle loading states and errors gracefully (e.g., disable buttons, show progress indicators).
 *   Focus on creating the structure and wiring for now; robust error handling, detailed validation messages, and deep integration with Supabase (especially RLS for deletion) can be refined later but the method calls should be present.
 *   For navigation, use `Navigator.of(context).push()` for new screens and `Navigator.of(context).pop()` to go back. After account deletion, the navigation should effectively clear the stack and go to the login/welcome screen.
+
+---
+
+**Title:** Implement Password Visibility Toggle on Login and Signup Screens
+
+**Context:**
+You are GitHub Copilot, an expert Flutter/Dart developer. Your task is to enhance the user experience on the login and signup screens by adding a password visibility toggle (eye icon) to the password input fields. This will allow users to show or hide their password as they type.
+
+**Affected Files:**
+*   `lib/views/login_screen.dart`
+*   `lib/views/signup_screen.dart`
+
+**Goal:**
+Add a toggleable eye icon to the password `TextFormField` widgets on both the `login_screen.dart` and `signup_screen.dart` to control password visibility.
+
+**Instructions:**
+
+1.  **Modify `lib/views/login_screen.dart`:**
+    *   Locate the `TextFormField` used for password input.
+    *   Introduce a new `bool` state variable, e.g., `_obscurePassword` (initialized to `true`), within the `_LoginScreenState` class.
+    *   Set the `obscureText` property of the password `TextFormField` to `_obscurePassword`.
+    *   Add an `IconButton` to the `suffixIcon` of the `InputDecoration` for the password `TextFormField`.
+        *   The icon should be `_obscurePassword ? Icons.visibility : Icons.visibility_off`.
+        *   The `onPressed` callback for the `IconButton` should toggle the value of `_obscurePassword` using `setState`.
+
+2.  **Modify `lib/views/signup_screen.dart`:**
+    *   Locate the `TextFormField` used for password input and the `TextFormField` for confirm password input.
+    *   Introduce two new `bool` state variables, e.g., `_obscurePassword` and `_obscureConfirmPassword` (both initialized to `true`), within the `_SignupScreenState` class.
+    *   Set the `obscureText` property of the password `TextFormField` to `_obscurePassword`.
+    *   Set the `obscureText` property of the confirm password `TextFormField` to `_obscureConfirmPassword`.
+    *   Add an `IconButton` to the `suffixIcon` of the `InputDecoration` for *both* password `TextFormField` widgets.
+        *   For the password field, the icon should be `_obscurePassword ? Icons.visibility : Icons.visibility_off`. The `onPressed` callback should toggle `_obscurePassword`.
+        *   For the confirm password field, the icon should be `_obscureConfirmPassword ? Icons.visibility : Icons.visibility_off`. The `onPressed` callback should toggle `_obscureConfirmPassword`.
+
+**Important Considerations:**
+*   Ensure the `TextFormField` widgets are within a `StatefulWidget` to manage the `_obscurePassword` and `_obscureConfirmPassword` states.
+*   Maintain existing styling and layout.
+*   Test thoroughly to ensure the toggle works correctly and doesn't interfere with other input field behaviors.

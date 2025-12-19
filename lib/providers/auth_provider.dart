@@ -220,6 +220,10 @@ class AuthProvider extends ChangeNotifier {
   void clearUserState() {
     _user = null;
     _isLoading = false;
+    _isPasswordResetFlow = false;
+    _isCheckingPasswordReset = false;
+    _sessionCreatedAt = null;
+    _previousEmailVerified = null;
     notifyListeners();
     debugPrint('AuthProvider: User state cleared');
   }
