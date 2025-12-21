@@ -24,3 +24,8 @@ Feature List:
 ## Full Agenda:
 - Build the view
 - Should allow control back to home
+
+## Post-Completion Cleanup:
+1. After password reset, when the flow is going back to main Login screen, somehow we need to hide the Logout flash screen
+2. After clicking on the email link to reset pwd, the control is back on the app but there is a delay for approx 2-3 secs before loading the pwd screen
+3. Upon Logout from Subs, Tasks and Appointment screen, there is a small transition back to Home and the Logout. Can this be improved by not showing Home View for a split second ?

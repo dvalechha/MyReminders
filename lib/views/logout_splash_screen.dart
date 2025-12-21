@@ -1,33 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
 
 /// Splash screen shown during logout process
-/// Shows for ~1 second, then automatically finishes
-class LogoutSplashScreen extends StatefulWidget {
+/// Navigation is handled by LogoutService after all cleanup operations complete
+class LogoutSplashScreen extends StatelessWidget {
   const LogoutSplashScreen({super.key});
-
-  @override
-  State<LogoutSplashScreen> createState() => _LogoutSplashScreenState();
-}
-
-class _LogoutSplashScreenState extends State<LogoutSplashScreen> {
-  @override
-  void initState() {
-    super.initState();
-    debugPrint('LogoutSplashScreen: initState called');
-    // Automatically finish after 1 second
-    Future.delayed(const Duration(milliseconds: 1000), () {
-      if (mounted) {
-        debugPrint('LogoutSplashScreen: Auto-popping after 1 second');
-        // Ensure auth state is refreshed before popping
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        authProvider.refreshSession();
-        // Pop this screen - AuthGate will detect null session and route to LoginScreen
-        Navigator.of(context).pop();
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
