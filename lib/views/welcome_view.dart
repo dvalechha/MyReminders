@@ -545,7 +545,6 @@ class _WelcomeViewState extends State<WelcomeView> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: const Text('MyReminder'),
         elevation: 0,
         backgroundColor: Colors.transparent,
         leading: Builder(
@@ -557,12 +556,12 @@ class _WelcomeViewState extends State<WelcomeView> {
       ),
       drawer: const AppNavigationDrawer(),
       body: SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.only(left: 20.0, right: 20.0, bottom: 20.0, top: 8.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 20),
               // Omnibox at the top
               Omnibox(
                 key: _omniboxKey,

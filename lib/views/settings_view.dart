@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'account_profile_view.dart';
+import '../utils/app_config.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -61,8 +62,8 @@ class _SettingsViewState extends State<SettingsView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'MyReminder © 2024\n\n'
+              Text(
+                '${AppConfig.copyrightText}\n\n'
                 'This app is built with:\n'
                 '- Flutter\n'
                 '- Provider for state management\n'

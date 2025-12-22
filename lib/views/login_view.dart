@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../utils/auth_error_helper.dart';
+import '../services/secure_storage_service.dart';
+import '../utils/app_config.dart';
 import 'forgot_password_screen.dart';
 
 class LoginView extends StatefulWidget {
@@ -20,6 +23,7 @@ class _LoginViewState extends State<LoginView> {
   bool _isLoading = false;
   String? _errorMessage;
   bool _obscurePassword = true;
+  bool _rememberMe = false;
 
   @override
   void initState() {
@@ -85,6 +89,42 @@ class _LoginViewState extends State<LoginView> {
         }
       } else {
         await authProvider.signInWithPassword(_emailController.text, _passwordController.text);
+        
+        // Handle "Remember Me" checkbox for email/password login
+        if (_rememberMe) {
+          debugPrint('📝 [LoginView] Remember Me checked - saving tokens to Keychain...');
+          // Save session tokens and set the flag
+          try {
+            final supabase = Supabase.instance.client;
+            final session = supabase.auth.currentSession;
+            if (session != null) {
+              final email = session.user.email ?? _emailController.text.trim();
+              debugPrint('📝 [LoginView] Saving tokens for email: $email');
+              await SecureStorageService.instance.saveSessionTokens(
+                email: email,
+                accessToken: session.accessToken,
+                refreshToken: session.refreshToken ?? '',
+              );
+              await SecureStorageService.instance.setRememberMeEnabled(true);
+              debugPrint('✅ [LoginView] Remember Me enabled - tokens saved to Keychain');
+            } else {
+              debugPrint('⚠️ [LoginView] No session available to save tokens');
+            }
+          } catch (e) {
+            debugPrint('❌ [LoginView] Error saving session tokens to Keychain: $e');
+            // Silently fail - don't break login flow if token storage fails
+          }
+        } else {
+          debugPrint('📝 [LoginView] Remember Me NOT checked - clearing Keychain tokens...');
+          // Clear flag and delete any existing tokens if "Remember Me" is unchecked
+          try {
+            await SecureStorageService.instance.setRememberMeEnabled(false);
+            await SecureStorageService.instance.deleteSessionTokens();
+            debugPrint('✅ [LoginView] Remember Me disabled - tokens cleared from Keychain');
+          } catch (e) {
+            debugPrint('❌ [LoginView] Error clearing Remember Me flag from Keychain: $e');
+          }
+        }
       }
     } catch (e) {
       setState(() {
@@ -108,6 +148,57 @@ class _LoginViewState extends State<LoginView> {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       await authProvider.signInWithGoogle();
+      
+      // Handle "Remember Me" checkbox for Google OAuth
+      // Note: For Google OAuth, we need to wait for the session to be established
+      // The session will be available after the OAuth callback completes
+      if (_rememberMe) {
+        debugPrint('📝 [LoginView] Remember Me checked (Google OAuth) - waiting for session, then saving to Keychain...');
+        // Poll for session with timeout (more reliable than fixed delay)
+        bool sessionReady = false;
+        int attempts = 0;
+        const maxAttempts = 20; // 20 attempts * 250ms = 5 seconds max wait
+        
+        while (!sessionReady && attempts < maxAttempts && mounted) {
+          await Future.delayed(const Duration(milliseconds: 250));
+          final supabase = Supabase.instance.client;
+          final session = supabase.auth.currentSession;
+          
+          if (session != null) {
+            try {
+              final email = session.user.email ?? _emailController.text.trim();
+              debugPrint('📝 [LoginView] Google OAuth session ready - saving tokens for: $email');
+              await SecureStorageService.instance.saveSessionTokens(
+                email: email,
+                accessToken: session.accessToken,
+                refreshToken: session.refreshToken ?? '',
+              );
+              await SecureStorageService.instance.setRememberMeEnabled(true);
+              debugPrint('✅ [LoginView] Remember Me enabled (Google OAuth) - tokens saved to Keychain');
+              sessionReady = true;
+            } catch (e) {
+              debugPrint('❌ [LoginView] Error saving session tokens to Keychain (Google OAuth): $e');
+              // Silently fail - don't break login flow if token storage fails
+              sessionReady = true; // Exit loop even on error
+            }
+          }
+          attempts++;
+        }
+        
+        if (!sessionReady && mounted) {
+          debugPrint('⚠️ [LoginView] Timeout waiting for Google OAuth session - tokens not saved to Keychain');
+        }
+      } else {
+        debugPrint('📝 [LoginView] Remember Me NOT checked (Google OAuth) - clearing Keychain tokens...');
+        // Clear flag and delete tokens if "Remember Me" is unchecked
+        try {
+          await SecureStorageService.instance.setRememberMeEnabled(false);
+          await SecureStorageService.instance.deleteSessionTokens();
+          debugPrint('✅ [LoginView] Remember Me disabled (Google OAuth) - tokens cleared from Keychain');
+        } catch (e) {
+          debugPrint('❌ [LoginView] Error clearing Remember Me flag from Keychain (Google OAuth): $e');
+        }
+      }
     } catch (e) {
       setState(() {
         _errorMessage = AuthErrorHelper.getErrorMessage(e);
@@ -134,9 +225,9 @@ class _LoginViewState extends State<LoginView> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
-                    'My Reminder',
-                    style: TextStyle(
+                  Text(
+                    AppConfig.appNameDisplay,
+                    style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                     ),
@@ -198,33 +289,64 @@ class _LoginViewState extends State<LoginView> {
                     },
                   ),
                   const SizedBox(height: 8),
-                        Align(
-                            alignment: Alignment.centerRight,
-                            child: Consumer<AuthProvider>(
-                              builder: (context, authProvider, child) {
-                                // Don't show "Forgot Password?" link if we're in a password reset flow
-                                // This prevents navigation to ForgotPasswordScreen when ResetPasswordScreen should be shown
-                                if (authProvider.isPasswordResetFlow) {
-                                  return const SizedBox.shrink();
-                                }
-                                return TextButton(
-                                  onPressed: _isLoading ? null : () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => ForgotPasswordScreen(
-                                          initialEmail: _emailController.text.trim().isNotEmpty
-                                              ? _emailController.text.trim()
-                                              : null,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  child: const Text('Forgot Password?'),
+                  // Only show Remember Me row when not in sign-up mode
+                  if (!_isSignUp)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Remember Me checkbox on the left
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Checkbox(
+                              value: _rememberMe,
+                              onChanged: (bool? newValue) {
+                                setState(() => _rememberMe = newValue ?? false);
+                              },
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() => _rememberMe = !_rememberMe);
+                              },
+                              child: Text(
+                                'Remember Me',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        // Forgot Password? link on the right
+                        Consumer<AuthProvider>(
+                          builder: (context, authProvider, child) {
+                            // Don't show "Forgot Password?" link if we're in a password reset flow
+                            // This prevents navigation to ForgotPasswordScreen when ResetPasswordScreen should be shown
+                            if (authProvider.isPasswordResetFlow) {
+                              return const SizedBox.shrink();
+                            }
+                            return TextButton(
+                              onPressed: _isLoading ? null : () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ForgotPasswordScreen(
+                                      initialEmail: _emailController.text.trim().isNotEmpty
+                                          ? _emailController.text.trim()
+                                          : null,
+                                    ),
+                                  ),
                                 );
                               },
-                            ),
-                          ),
+                              child: const Text('Forgot Password?'),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   const SizedBox(height: 16),
                   if (_errorMessage != null)
                     Container(
