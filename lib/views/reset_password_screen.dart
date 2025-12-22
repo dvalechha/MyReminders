@@ -180,11 +180,28 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       if (value == null || value.isEmpty) {
                         return 'Please enter a new password';
                       }
-                      if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
+                      if (value.length < 8) {
+                        return 'Password must be at least 8 characters';
+                      }
+                      if (!RegExp(r'[0-9]').hasMatch(value)) {
+                        return 'Password must contain at least one digit';
+                      }
+                      if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(value)) {
+                        return 'Password must contain at least one special character';
                       }
                       return null;
                     },
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    child: Text(
+                      'Password must be at least 8 characters and contain at least one digit and one special character.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(

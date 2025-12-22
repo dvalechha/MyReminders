@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/logout_service.dart';
+import '../services/secure_storage_service.dart';
 import '../repositories/user_profile_repository.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -27,12 +28,48 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _initializeAuth() async {
     final supabase = Supabase.instance.client;
 
+    debugPrint('🚀 [AuthProvider] Initializing authentication...');
     _user = supabase.auth.currentUser;
     _previousEmailVerified = _user?.emailConfirmedAt != null;
+    
     if (_user != null) {
-      _sessionCreatedAt = DateTime.now();
-      // Await the email verification check to ensure sign out happens before listener setup
-      await _checkEmailVerificationOnInit();
+      debugPrint('👤 [AuthProvider] Supabase session found on startup');
+      debugPrint('👤 [AuthProvider] User email: ${_user?.email}');
+      debugPrint('👤 [AuthProvider] Session restored by Supabase (built-in persistence)');
+      
+      // Check if "Remember Me" is enabled
+      // If user exists but Remember Me is not enabled, clear the session
+      debugPrint('🔍 [AuthProvider] Checking Remember Me status in Keychain...');
+      final rememberMeEnabled = await SecureStorageService.instance.isRememberMeEnabled();
+      
+      if (!rememberMeEnabled) {
+        debugPrint('⚠️ [AuthProvider] Remember Me NOT enabled in Keychain');
+        debugPrint('⚠️ [AuthProvider] Clearing Supabase session (user did not check Remember Me)');
+        // Clear Supabase session if Remember Me is not enabled
+        await supabase.auth.signOut();
+        _user = null;
+        _previousEmailVerified = null;
+        _sessionCreatedAt = null;
+        debugPrint('✅ [AuthProvider] Session cleared - user will see login screen');
+      } else {
+        debugPrint('✅ [AuthProvider] Remember Me ENABLED in Keychain');
+        debugPrint('✅ [AuthProvider] Session will be kept - user stays logged in');
+        debugPrint('ℹ️ [AuthProvider] Note: Supabase restored session automatically, Keychain tokens are available for future use');
+        _sessionCreatedAt = DateTime.now();
+        // Await the email verification check to ensure sign out happens before listener setup
+        await _checkEmailVerificationOnInit();
+      }
+    } else {
+      debugPrint('👤 [AuthProvider] No Supabase session found on startup');
+      debugPrint('🔍 [AuthProvider] Checking if Keychain tokens exist...');
+      final hasTokens = await SecureStorageService.instance.hasSessionTokens();
+      if (hasTokens) {
+        debugPrint('⚠️ [AuthProvider] Keychain tokens exist but no Supabase session');
+        debugPrint('⚠️ [AuthProvider] This means Supabase session expired or was cleared');
+        debugPrint('ℹ️ [AuthProvider] User will need to log in again');
+      } else {
+        debugPrint('ℹ️ [AuthProvider] No Keychain tokens found - user needs to log in');
+      }
     }
 
     _isLoading = false;
@@ -518,11 +555,30 @@ class AuthProvider extends ChangeNotifier {
   /// Update the current user's password
   Future<void> updatePassword(String newPassword) async {
     try {
+      debugPrint('🔐 [AuthProvider] Starting password update...');
       final supabase = Supabase.instance.client;
+      
+      debugPrint('📝 [AuthProvider] Updating password in Supabase...');
       await supabase.auth.updateUser(UserAttributes(password: newPassword));
+      debugPrint('✅ [AuthProvider] Password updated successfully in Supabase');
+      
+      debugPrint('🔄 [AuthProvider] Refreshing session...');
       await refreshSession();
+      debugPrint('✅ [AuthProvider] Session refreshed');
+      
+      debugPrint('🧹 [AuthProvider] Clearing password reset flag...');
       await clearPasswordResetFlag();
+      debugPrint('✅ [AuthProvider] Password reset flag cleared');
+      
+      // Clear keychain tokens when password is changed
+      // Old tokens become invalid, user needs to log in again with new password
+      debugPrint('🔐 [AuthProvider] Password changed - clearing Keychain tokens...');
+      debugPrint('🔐 [AuthProvider] Old tokens are now invalid, user must log in again with new password');
+      await SecureStorageService.instance.deleteSessionTokens();
+      debugPrint('✅ [AuthProvider] Keychain tokens cleared after password change');
+      debugPrint('✅ [AuthProvider] Password update complete - user must re-authenticate with new password');
     } catch (e) {
+      debugPrint('❌ [AuthProvider] Error updating password: $e');
       throw Exception('Failed to update password: $e');
     }
   }
@@ -530,12 +586,15 @@ class AuthProvider extends ChangeNotifier {
   /// Delete the current user's account
   Future<void> deleteAccount(BuildContext context) async {
     try {
+      debugPrint('🗑️ [AuthProvider] Starting account deletion process...');
       final supabase = Supabase.instance.client;
 
+      debugPrint('🔄 [AuthProvider] Refreshing session before deletion...');
       try {
         await supabase.auth.refreshSession();
+        debugPrint('✅ [AuthProvider] Session refreshed');
       } catch (e) {
-        debugPrint('Warning: Could not refresh session: $e');
+        debugPrint('⚠️ [AuthProvider] Warning: Could not refresh session: $e');
       }
 
       final session = supabase.auth.currentSession;
@@ -548,7 +607,7 @@ class AuthProvider extends ChangeNotifier {
         throw Exception('Invalid session token. Please sign in again.');
       }
 
-      debugPrint('Calling delete-account function with token (length: ${accessToken.length})');
+      debugPrint('📞 [AuthProvider] Calling delete-account function with token (length: ${accessToken.length})');
 
       try {
         final response = await supabase.functions.invoke(
@@ -566,16 +625,19 @@ class AuthProvider extends ChangeNotifier {
           throw Exception(errorMessage);
         }
 
-        debugPrint('Account deletion successful: ${response.data}');
+        debugPrint('✅ [AuthProvider] Account deletion successful: ${response.data}');
       } catch (e) {
-        debugPrint('Error calling delete-account function: $e');
+        debugPrint('❌ [AuthProvider] Error calling delete-account function: $e');
         rethrow;
       }
 
+      // LogoutService will clear keychain tokens as part of the logout process
+      debugPrint('🔐 [AuthProvider] Account deleted - initiating logout (Keychain will be cleared)...');
       // ignore: use_build_context_synchronously
       await LogoutService.instance.logout(context);
+      debugPrint('✅ [AuthProvider] Account deletion complete - Keychain cleared via LogoutService');
     } catch (e) {
-      debugPrint('Error in deleteAccount: $e');
+      debugPrint('❌ [AuthProvider] Error in deleteAccount: $e');
       rethrow;
     }
   }

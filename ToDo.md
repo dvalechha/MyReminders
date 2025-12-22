@@ -8,14 +8,14 @@ Feature List:
 3. For sign up confirmation and pwd reset emails being sent , how can we customize it to reflect that the emails are from Custos and not from SupaBase ? I dont want to reveal my server technology to users.
 
 ## Login
-1. If user has entered an email on the main screen, carry that fwd on the pwd reset screen
+1. If user has entered an email on the main screen, carry that fwd on the pwd reset screen -- Done
 2. IOS: 
-  - Allow user to save creds on keychain
-  - Upon account deletion/pwd change, keychain should be updated accordingly
+    2.1. Allow user to save creds on keychain -- Done
+    2.2. Upon account deletion/pwd change, keychain should be updated accordingly
 3. Android:
-  - TBD
+  3.1. TBD
 4. Build criteria logic for pwd strength
-5. Build eye for hide/show password
+5. Build eye for hide/show password -- Done
 6. We have added a Display name on the SignUp page, I was wondering if we can use the display name as the Icon for settings instead of the default 3 bar style settings icon ?
 
 ## Sign Up screen
@@ -29,3 +29,6 @@ Feature List:
 1. After password reset, when the flow is going back to main Login screen, somehow we need to hide the Logout flash screen
 2. After clicking on the email link to reset pwd, the control is back on the app but there is a delay for approx 2-3 secs before loading the pwd screen
 3. Upon Logout from Subs, Tasks and Appointment screen, there is a small transition back to Home and the Logout. Can this be improved by not showing Home View for a split second ?
+4. Login screen seems slow sometimes
+5. Logging statement (DEV vs Prod)
+6. The confirmation emails on sign-up and pwd reset, are coming from SupaBase, which is expected. Is it possible to make it come from the app "Custos" ?

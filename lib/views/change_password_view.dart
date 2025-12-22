@@ -14,6 +14,8 @@ class _ChangePasswordViewState extends State<ChangePasswordView> {
   final TextEditingController _newController = TextEditingController();
   final TextEditingController _confirmController = TextEditingController();
   bool _isLoading = false;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
 
   @override
   void dispose() {
@@ -78,19 +80,60 @@ class _ChangePasswordViewState extends State<ChangePasswordView> {
               ],
               TextFormField(
                 controller: _newController,
-                decoration: const InputDecoration(labelText: 'New password'),
-                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: 'New password',
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureNewPassword ? Icons.visibility : Icons.visibility_off,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureNewPassword = !_obscureNewPassword;
+                      });
+                    },
+                  ),
+                ),
+                obscureText: _obscureNewPassword,
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Enter a new password';
-                  if (v.length < 8) return 'Password should be at least 8 characters';
+                  if (v.length < 8) return 'Password must be at least 8 characters';
+                  if (!RegExp(r'[0-9]').hasMatch(v)) {
+                    return 'Password must contain at least one digit';
+                  }
+                  if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(v)) {
+                    return 'Password must contain at least one special character';
+                  }
                   return null;
                 },
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: Text(
+                  'Password must be at least 8 characters and contain at least one digit and one special character.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _confirmController,
-                decoration: const InputDecoration(labelText: 'Confirm password'),
-                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: 'Confirm password',
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureConfirmPassword = !_obscureConfirmPassword;
+                      });
+                    },
+                  ),
+                ),
+                obscureText: _obscureConfirmPassword,
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Confirm your password';
                   if (v != _newController.text) return 'Passwords do not match';

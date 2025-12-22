@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'local_cache_service.dart';
 import 'state_reset_service.dart';
+import 'secure_storage_service.dart';
 import '../views/logout_splash_screen.dart';
 import '../providers/auth_provider.dart';
 import '../providers/navigation_model.dart';
@@ -90,26 +91,31 @@ class LogoutService {
       // Step 4: Clear local cache (database, notifications)
       await LocalCacheService.instance.clearAll();
 
-      // Step 5: Sign out from Supabase
+      // Step 5: Clear secure storage tokens (Remember Me)
+      debugPrint('🗑️ [LogoutService] Clearing Keychain tokens and Remember Me flag...');
+      await SecureStorageService.instance.deleteSessionTokens();
+      debugPrint('✅ [LogoutService] Keychain tokens and Remember Me flag cleared');
+
+      // Step 6: Sign out from Supabase
       await Supabase.instance.client.auth.signOut();
       
       debugPrint('Logout: Supabase signOut called');
       
-      // Step 6: Wait a bit for the auth state change listener to process
+      // Step 7: Wait a bit for the auth state change listener to process
       await Future.delayed(const Duration(milliseconds: 100));
       
-      // Step 7: Manually clear user state (using the reference we got earlier)
+      // Step 8: Manually clear user state (using the reference we got earlier)
       // This ensures state is cleared even if the original context is no longer mounted
       authProvider.clearUserState();
       debugPrint('Logout: User state cleared');
       
-      // Step 8: Stop all live listeners
+      // Step 9: Stop all live listeners
       stopLiveListeners();
       
-      // Step 9: Wait a moment for UI to update
+      // Step 10: Wait a moment for UI to update
       await Future.delayed(const Duration(milliseconds: 500));
       
-      // Step 10: Navigate to root using the global navigator key
+      // Step 11: Navigate to root using the global navigator key
       // This clears the entire navigation stack and returns to AuthGate
       // AuthGate will detect null session and show LoginScreen
       debugPrint('Logout: Navigating to root');

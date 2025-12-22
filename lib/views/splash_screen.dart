@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_config.dart';
 
 /// Splash screen shown briefly during logout
 class SplashScreen extends StatefulWidget {
@@ -41,8 +42,8 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               SizedBox(height: 24),
               Text(
-                'My Reminder',
-                style: TextStyle(
+                AppConfig.appNameDisplay,
+                style: const TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
