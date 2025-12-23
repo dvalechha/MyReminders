@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -22,32 +23,45 @@ class NotificationService {
   Future<bool> initialize() async {
     if (_initialized) return _authorized;
 
-    // Initialize timezone
-    tz.initializeTimeZones();
+    try {
+      debugPrint('🔔 [NotificationService] Initializing notifications...');
+      
+      // Initialize timezone
+      tz.initializeTimeZones();
+      debugPrint('✅ [NotificationService] Timezone initialized');
 
-    // Android initialization settings
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      // Android initialization settings
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    // iOS initialization settings
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
+      // iOS initialization settings
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
 
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-    );
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
 
-    final bool? initialized = await _notifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: _onNotificationTapped,
-    );
+      final bool? initialized = await _notifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: _onNotificationTapped,
+      );
 
-    if (initialized == true) {
-      _initialized = true;
-      _authorized = await checkAuthorizationStatus();
+      if (initialized == true) {
+        _initialized = true;
+        debugPrint('✅ [NotificationService] Notification plugin initialized');
+        _authorized = await checkAuthorizationStatus();
+        debugPrint('🔔 [NotificationService] Authorization status: ${_authorized ? "Authorized" : "Not authorized"}');
+      } else {
+        debugPrint('❌ [NotificationService] Failed to initialize notification plugin');
+      }
+    } catch (e) {
+      debugPrint('❌ [NotificationService] Error during initialization: $e');
+      _initialized = false;
+      _authorized = false;
     }
 
     return _authorized;
@@ -78,18 +92,22 @@ class NotificationService {
               AndroidFlutterLocalNotificationsPlugin>();
       
       if (androidImplementation != null) {
+        debugPrint('🔔 [NotificationService] Checking Android notification permissions...');
         // Request permission for Android 13+ (API 33+)
         final bool? requested = await androidImplementation.requestNotificationsPermission();
         if (requested == true) {
           _authorized = true;
+          debugPrint('✅ [NotificationService] Android notification permission granted');
         } else {
           // Check if notifications are already enabled
           final bool? areNotificationsEnabled = 
               await androidImplementation.areNotificationsEnabled();
           _authorized = areNotificationsEnabled ?? true; // Default to true for older Android versions
+          debugPrint('🔔 [NotificationService] Android notifications ${_authorized ? "enabled" : "disabled"}');
         }
       } else {
         _authorized = true; // Fallback: assume authorized
+        debugPrint('⚠️ [NotificationService] Android implementation not available, assuming authorized');
       }
     } else {
       // For other platforms, assume authorized
@@ -104,7 +122,8 @@ class NotificationService {
   // Handle notification tap
   void _onNotificationTapped(NotificationResponse response) {
     // Handle notification tap if needed
-    print('Notification tapped: ${response.payload}');
+    debugPrint('🔔 [NotificationService] Notification tapped: ${response.payload}');
+    // TODO: Navigate to relevant screen based on payload if needed
   }
 
   // Schedule reminder notification
@@ -115,8 +134,13 @@ class NotificationService {
     required String notificationId,
   }) async {
     if (!_authorized) {
-      print('Notifications not authorized, skipping schedule');
+      debugPrint('⚠️ [NotificationService] Notifications not authorized, skipping schedule');
       return;
+    }
+    
+    if (!_initialized) {
+      debugPrint('⚠️ [NotificationService] Not initialized, initializing now...');
+      await initialize();
     }
 
     if (reminderDaysBefore <= 0) {
@@ -144,13 +168,18 @@ class NotificationService {
           )
         : scheduledDate;
 
-    // Create notification content
+    // Create notification content with Android-specific enhancements
     final androidDetails = AndroidNotificationDetails(
       'reminders',
       'Subscription Reminders',
       channelDescription: 'Notifications for upcoming subscription renewals',
       importance: Importance.high,
       priority: Priority.high,
+      enableVibration: true,
+      playSound: true,
+      showWhen: true,
+      enableLights: true,
+      channelShowBadge: true,
     );
 
     final iosDetails = DarwinNotificationDetails(
@@ -167,26 +196,36 @@ class NotificationService {
     // Format renewal date for notification body
     final formattedDate = _formatRenewalDate(renewalDate);
 
-    // Schedule notification (use hash code of notificationId)
-    await _notifications.zonedSchedule(
-      notificationId.hashCode.abs(),
-      'Upcoming Renewal',
-      'Your ${subscription.serviceName} subscription renews on $formattedDate.',
-      tz.TZDateTime.from(actualTriggerDate, tz.local),
-      notificationDetails,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-    );
+      try {
+      // Schedule notification (use hash code of notificationId)
+      await _notifications.zonedSchedule(
+        notificationId.hashCode.abs(),
+        'Upcoming Renewal',
+        'Your ${subscription.serviceName} subscription renews on $formattedDate.',
+        tz.TZDateTime.from(actualTriggerDate, tz.local),
+        notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
 
-    print('Notification scheduled for $actualTriggerDate (notificationId: $notificationId)');
+      debugPrint('✅ [NotificationService] Notification scheduled for $actualTriggerDate (notificationId: $notificationId)');
+    } catch (e) {
+      debugPrint('❌ [NotificationService] Error scheduling notification: $e');
+      rethrow;
+    }
   }
 
   // Cancel reminder notification
   Future<void> cancelReminder(String notificationId) async {
     if (notificationId.isEmpty) return;
 
-    // Convert UUID to int for notification ID (use hash code)
-    final id = notificationId.hashCode.abs();
-    await _notifications.cancel(id);
+    try {
+      // Convert UUID to int for notification ID (use hash code)
+      final id = notificationId.hashCode.abs();
+      await _notifications.cancel(id);
+      debugPrint('✅ [NotificationService] Cancelled reminder notification: $notificationId');
+    } catch (e) {
+      debugPrint('❌ [NotificationService] Error cancelling reminder: $e');
+    }
   }
 
   // Cancel reminder for subscription
@@ -290,8 +329,13 @@ class NotificationService {
     required int minutesBefore,
   }) async {
     if (!_authorized) {
-      print('Notifications not authorized, skipping schedule');
+      debugPrint('⚠️ [NotificationService] Notifications not authorized, skipping schedule');
       return;
+    }
+    
+    if (!_initialized) {
+      debugPrint('⚠️ [NotificationService] Not initialized, initializing now...');
+      await initialize();
     }
 
     if (minutesBefore <= 0) return;
@@ -306,6 +350,11 @@ class NotificationService {
       channelDescription: 'Notifications for appointments, tasks, and custom reminders',
       importance: Importance.high,
       priority: Priority.high,
+      enableVibration: true,
+      playSound: true,
+      showWhen: true,
+      enableLights: true,
+      channelShowBadge: true,
     );
 
     final iosDetails = DarwinNotificationDetails(
@@ -319,21 +368,31 @@ class NotificationService {
       iOS: iosDetails,
     );
 
-    await _notifications.zonedSchedule(
-      notificationId.hashCode.abs(),
-      title,
-      body,
-      tz.TZDateTime.from(reminderTime, tz.local),
-      notificationDetails,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-    );
+    try {
+      await _notifications.zonedSchedule(
+        notificationId.hashCode.abs(),
+        title,
+        body,
+        tz.TZDateTime.from(reminderTime, tz.local),
+        notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
 
-    print('Time-based reminder scheduled for $reminderTime (notificationId: $notificationId)');
+      debugPrint('✅ [NotificationService] Time-based reminder scheduled for $reminderTime (notificationId: $notificationId)');
+    } catch (e) {
+      debugPrint('❌ [NotificationService] Error scheduling time-based reminder: $e');
+      rethrow;
+    }
   }
 
   /// Cancel all pending notifications
   Future<void> cancelAllNotifications() async {
-    await _notifications.cancelAll();
+    try {
+      await _notifications.cancelAll();
+      debugPrint('✅ [NotificationService] All notifications cancelled');
+    } catch (e) {
+      debugPrint('❌ [NotificationService] Error cancelling all notifications: $e');
+    }
   }
 }
 

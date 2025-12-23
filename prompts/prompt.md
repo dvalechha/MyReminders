@@ -1,41 +1,26 @@
-**Title:** Implement Secure Token Storage for "Remember Me" Feature
+**Title:** Sync Flutter App Features for Android Platform Parity (Excluding iOS Keychain)
 
 **Context:**
-You are an expert Flutter/Dart developer specializing in authentication and secure storage. Your task is to implement the logic for the "Remember Me" checkbox on the login screen. When a user successfully logs in and has checked "Remember Me", their authentication tokens should be securely stored for automatic re-login.
+The "MyReminder" Flutter app has a robust set of features, including a complete Supabase authentication system, various data models (Subscriptions, Appointments, Tasks), data management with RLS, and a comprehensive UI. While these features are largely stable and verified on iOS, the Android implementation is lagging.
 
 **Goal:**
-Modify the login handling logic to save authentication tokens to secure storage (iOS Keychain) when the "Remember Me" checkbox is selected.
+Ensure that all currently implemented features of the "MyReminder" app function correctly and equivalently on the Android platform. The primary objective is to achieve full feature parity with the existing iOS implementation, identifying and resolving any Android-specific issues or missing implementations.
 
-**Affected File:**
-*   `lib/views/login_screen.dart` (Specifically, the methods that handle user login)
+**Key Areas for Android Sync-up:**
 
-**Assumptions:**
-*   The `flutter_secure_storage` package is available and imported.
-*   The `AuthProvider` can provide access to the current user's session details, including `accessToken` and `refreshToken`, after a successful login.
-*   A mechanism exists (or will be implemented separately) to use these stored tokens for auto-login on app startup (e.g., within `AuthGate`).
+1.  **Authentication Flows:** Verify and ensure smooth operation of all authentication features (Email/Password, Google OAuth, Forgot Password, Email Verification, Account Deletion, Session Management) on Android devices.
+2.  **Data Persistence & Management:** Confirm that data models (Subscriptions, Appointments, Tasks, Categories, User Profile) are correctly managed, stored, and retrieved on Android. Pay attention to any local caching mechanisms (`LocalCacheService`) that might have platform-specific behaviors.
+3.  **UI/UX Consistency:** Validate that all UI components, views, and widgets render correctly and provide an optimal user experience on various Android devices and screen sizes. Address any visual discrepancies or interaction issues.
+4.  **Notification Service Implementation:** The `NotificationService` is currently scaffolded. Implement the necessary Android-specific notification APIs to ensure reminders and alerts function as expected on Android. This is a critical area to bring to full functionality.
+5.  **Secure Storage:** Adapt or implement secure storage solutions for Android to replace any iOS Keychain-specific logic. Focus on a secure, Android-idiomatic approach for storing sensitive user information (e.g., authentication tokens) where it currently relies on Keychain on iOS. **Explicitly avoid reusing or porting iOS Keychain logic.**
+6.  **Error Handling:** Ensure `AuthErrorHelper` and other error handling mechanisms provide user-friendly messages and behave consistently on Android.
 
-**Instructions:**
+**Instructions for the Flutter Expert:**
 
-1.  **Locate Login Handler Methods:**
-    *   Find the `_handleEmailPasswordLogin()` and `_handleGoogleLogin()` methods in `lib/views/login_screen.dart`.
-
-2.  **Integrate "Remember Me" Logic:**
-    *   Inside both `_handleEmailPasswordLogin()` and `_handleGoogleLogin()`, **after** the line where the `AuthProvider` successfully completes the sign-in (e.g., `await authProvider.signInWithPassword(...)` or `await authProvider.signInWithGoogle()`), add a check for the `_rememberMe` state variable.
-
-3.  **Securely Store Tokens (if `_rememberMe` is true):**
-    *   If `_rememberMe` is `true`:
-        *   Retrieve the current Supabase session details. This may involve accessing `authProvider.currentSession` or a similar property that holds the active session information.
-        *   From the session details, extract the `accessToken`, `refreshToken`, and the user's email.
-        *   Call a secure storage function to save these details. For example, you might call a hypothetical `SecureStorageService.saveSessionTokens(email, accessToken, refreshToken)`. (Assume `SecureStorageService` is available or can be conceptually called).
-
-4.  **Handle "Remember Me" is false:**
-    *   If `_rememberMe` is `false`, no action should be taken regarding token storage.
-
-5.  **Critical Exclusions:**
-    *   **Do NOT implement:** Logic for clearing tokens upon password change.
-    *   **Do NOT implement:** Logic for clearing tokens upon account deletion.
-    *   **Do NOT implement:** Any UI elements related to token expiration or refresh.
-    *   **Do NOT implement:** The auto-login mechanism itself on app startup. Focus *only* on the saving part within the login handlers.
+1.  **Codebase Review:** Conduct a thorough review of the entire Flutter codebase to identify areas that might have platform-specific implementations or dependencies.
+2.  **Android-Specific Adjustments:** Implement any necessary code changes, configurations, or native integrations required to make all features fully functional on Android.
+3.  **Testing:** Prioritize rigorous testing on Android emulators and physical devices to confirm functionality and identify bugs.
+4.  **Exclude iOS Keychain:** When addressing secure storage, explicitly design and implement an Android-specific solution. Do NOT attempt to port or re-implement iOS Keychain logic for Android.
 
 **Desired Outcome:**
-When a user logs in, checks "Remember Me", and successfully authenticates, their session tokens will be securely stored. This state will be managed solely within the login completion flow, without affecting other parts of the application's authentication lifecycle in this step.
+A fully functional Android version of the "MyReminder" app with complete feature parity to the iOS version, addressing all platform-specific requirements and ensuring a consistent and reliable user experience, with secure storage implemented using Android-idiomatic practices.
