@@ -10,6 +10,7 @@ import 'providers/user_profile_provider.dart';
 import 'providers/navigation_model.dart';
 import 'utils/environment_config.dart';
 import 'widgets/auth_gate.dart';
+import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +49,18 @@ Future<void> main() async {
     url: supabaseUrl,
     anonKey: supabaseAnonKey,
   );
+
+  // Initialize NotificationService at app startup
+  // This ensures notifications are ready before any provider needs them
+  debugPrint('🔔 Initializing NotificationService...');
+  try {
+    await NotificationService.instance.initialize();
+    final authorized = await NotificationService.instance.checkAuthorizationStatus();
+    debugPrint('🔔 NotificationService initialized: ${authorized ? "Authorized" : "Not authorized"}');
+  } catch (e) {
+    debugPrint('⚠️ Failed to initialize NotificationService: $e');
+    // Continue app startup even if notification initialization fails
+  }
 
   runApp(const MyReminderApp());
 }
