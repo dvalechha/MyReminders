@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../providers/navigation_model.dart';
 import '../views/login_screen.dart';
-import '../views/welcome_view.dart';
 import '../views/email_verification_view.dart';
 import '../views/reset_password_screen.dart';
+import '../views/main_navigation_view.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -269,7 +268,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
 
         // User is authenticated and verified
         _loadProfileIfAuthenticated();
-        return const WelcomeView();
+        return const MainNavigationView();
       },
     );
   }

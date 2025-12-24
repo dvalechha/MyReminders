@@ -8,6 +8,7 @@ import '../providers/navigation_model.dart';
 import '../models/subscription.dart';
 import '../widgets/app_navigation_drawer.dart';
 import 'subscription_form_view.dart';
+import 'main_navigation_view.dart';
 
 class MonthlySpend {
   final String id;
@@ -142,10 +143,10 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
               IconButton(
                 icon: const Icon(Icons.add),
                 onPressed: () {
-                  Navigator.push(
-                    context,
+                  MainNavigationKeys.homeNavigatorKey.currentState?.push(
                     MaterialPageRoute(
                       builder: (context) => const SubscriptionFormView(),
+                      settings: const RouteSettings(name: 'SubscriptionFormView'),
                     ),
                   );
                 },
@@ -450,12 +451,12 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
           ],
         ),
         onTap: () {
-          Navigator.push(
-            context,
+          MainNavigationKeys.homeNavigatorKey.currentState?.push(
             MaterialPageRoute(
               builder: (context) => SubscriptionFormView(
                 subscription: subscription,
               ),
+              settings: const RouteSettings(name: 'SubscriptionFormView'),
             ),
           );
         },

@@ -6,6 +6,7 @@ import '../providers/appointment_provider.dart';
 import '../models/appointment.dart';
 import '../widgets/app_navigation_drawer.dart';
 import 'appointment_form_view.dart';
+import 'main_navigation_view.dart';
 
 class AppointmentsListView extends StatefulWidget {
   const AppointmentsListView({super.key});
@@ -91,10 +92,10 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
               IconButton(
                 icon: const Icon(Icons.add),
                 onPressed: () {
-                  Navigator.push(
-                    context,
+                  MainNavigationKeys.homeNavigatorKey.currentState?.push(
                     MaterialPageRoute(
                       builder: (context) => const AppointmentFormView(),
+                      settings: const RouteSettings(name: 'AppointmentFormView'),
                     ),
                   );
                 },
@@ -281,12 +282,12 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
           ],
         ),
         onTap: () {
-          Navigator.push(
-            context,
+          MainNavigationKeys.homeNavigatorKey.currentState?.push(
             MaterialPageRoute(
               builder: (context) => AppointmentFormView(
                 appointment: appointment,
               ),
+              settings: const RouteSettings(name: 'AppointmentFormView'),
             ),
           );
         },

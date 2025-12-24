@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../views/settings_view.dart';
 import '../providers/auth_provider.dart';
 
 class AppNavigationDrawer extends StatelessWidget {
@@ -38,19 +37,7 @@ class AppNavigationDrawer extends StatelessWidget {
               ],
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.settings),
-            title: const Text('Settings'),
-            onTap: () {
-              Navigator.pop(context); // Close drawer
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SettingsView(),
-                ),
-              );
-            },
-          ),
+          // Settings removed - now accessible via bottom navigation bar "More" tab
           const Divider(),
           ListTile(
             leading: const Icon(Icons.help_outline),
