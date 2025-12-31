@@ -29,6 +29,16 @@ class _MainNavigationViewState extends State<MainNavigationView> {
       } else {
         MainNavigationKeys.settingsNavigatorKey.currentState?.popUntil((route) => route.isFirst);
       }
+    } else {
+      // When switching tabs, ensure the target tab's navigator is at root
+      // This prevents showing nested routes from the previous tab
+      if (index == 0) {
+        // Switching to Home tab - ensure it's at root
+        MainNavigationKeys.homeNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+      } else {
+        // Switching to More tab - ensure it's at root
+        MainNavigationKeys.settingsNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+      }
     }
     setState(() {
       _selectedIndex = index;

@@ -9,7 +9,6 @@ import '../widgets/pulsing_gradient_placeholder.dart';
 import '../widgets/default_welcome_view.dart';
 import '../widgets/help_suggestion_view.dart';
 import '../widgets/todays_snapshot_view.dart';
-import '../widgets/app_navigation_drawer.dart';
 import '../utils/natural_language_parser.dart';
 import '../services/intent_parser_service.dart';
 import '../models/parsed_intent.dart';
@@ -555,14 +554,7 @@ class _WelcomeViewState extends State<WelcomeView> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
       ),
-      drawer: const AppNavigationDrawer(),
       body: SafeArea(
         top: false,
         child: Padding(

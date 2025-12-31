@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
 import 'account_profile_view.dart';
 import '../utils/app_config.dart';
+import '../providers/auth_provider.dart';
+import '../widgets/help_suggestion_view.dart';
+import 'main_navigation_view.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -99,9 +103,10 @@ class _SettingsViewState extends State<SettingsView> {
             title: const Text('Account & Profile'),
             subtitle: const Text('Manage your personal information'),
             onTap: () {
-              Navigator.of(context).push(
+              MainNavigationKeys.settingsNavigatorKey.currentState?.push(
                 MaterialPageRoute(
                   builder: (context) => AccountProfileView(),
+                  settings: const RouteSettings(name: 'AccountProfileView'),
                 ),
               );
             },
@@ -178,7 +183,60 @@ class _SettingsViewState extends State<SettingsView> {
             title: const Text('Legal Notices'),
             onTap: _showLicensesDialog,
           ),
-          const SizedBox(height: 32),
+          const Divider(),
+
+          // Support Section
+          _buildSectionHeader('Support'),
+          ListTile(
+            leading: const Icon(Icons.help_outline),
+            title: const Text('Help & Feedback'),
+            subtitle: const Text('Get help and provide feedback'),
+            onTap: () {
+              MainNavigationKeys.settingsNavigatorKey.currentState?.push(
+                MaterialPageRoute(
+                  builder: (context) => Scaffold(
+                    appBar: AppBar(
+                      title: const Text('Help & Feedback'),
+                    ),
+                    body: HelpSuggestionView(
+                      onExampleTap: (example) {
+                        // Navigate back to settings root
+                        MainNavigationKeys.settingsNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+                        // The example could be used to populate the omnibox if needed
+                      },
+                    ),
+                  ),
+                  settings: const RouteSettings(name: 'HelpSuggestionView'),
+                ),
+              );
+            },
+          ),
+          const Divider(),
+
+          // Logout Section
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                try {
+                  await authProvider.signOut(context);
+                } catch (e) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Logout failed: $e')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.logout),
+              label: const Text('Logout'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Colors.grey[200],
+                foregroundColor: Colors.grey[800],
+              ),
+            ),
+          ),
           const SizedBox(height: 32),
         ],
       ),
