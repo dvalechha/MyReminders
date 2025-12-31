@@ -4,8 +4,8 @@ import 'package:intl/intl.dart';
 import '../providers/navigation_model.dart';
 import '../providers/appointment_provider.dart';
 import '../models/appointment.dart';
-import '../widgets/app_navigation_drawer.dart';
 import 'appointment_form_view.dart';
+import 'main_navigation_view.dart';
 
 class AppointmentsListView extends StatefulWidget {
   const AppointmentsListView({super.key});
@@ -63,14 +63,7 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
           return Scaffold(
             appBar: AppBar(
               title: const Text('My Appointments'),
-              leading: Builder(
-                builder: (context) => IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                ),
-              ),
             ),
-            drawer: const AppNavigationDrawer(),
             body: const Center(child: CircularProgressIndicator()),
           );
         }
@@ -91,10 +84,10 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
               IconButton(
                 icon: const Icon(Icons.add),
                 onPressed: () {
-                  Navigator.push(
-                    context,
+                  MainNavigationKeys.homeNavigatorKey.currentState?.push(
                     MaterialPageRoute(
                       builder: (context) => const AppointmentFormView(),
+                      settings: const RouteSettings(name: 'AppointmentFormView'),
                     ),
                   );
                 },
@@ -135,7 +128,6 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
               ),
             ),
           ),
-          drawer: const AppNavigationDrawer(),
           body: provider.appointments.isEmpty
               ? _buildEmptyState(context)
               : _buildAppointmentsList(context, provider, filteredAppointments),
@@ -281,12 +273,12 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
           ],
         ),
         onTap: () {
-          Navigator.push(
-            context,
+          MainNavigationKeys.homeNavigatorKey.currentState?.push(
             MaterialPageRoute(
               builder: (context) => AppointmentFormView(
                 appointment: appointment,
               ),
+              settings: const RouteSettings(name: 'AppointmentFormView'),
             ),
           );
         },

@@ -9,7 +9,6 @@ import '../widgets/pulsing_gradient_placeholder.dart';
 import '../widgets/default_welcome_view.dart';
 import '../widgets/help_suggestion_view.dart';
 import '../widgets/todays_snapshot_view.dart';
-import '../widgets/app_navigation_drawer.dart';
 import '../utils/natural_language_parser.dart';
 import '../services/intent_parser_service.dart';
 import '../models/parsed_intent.dart';
@@ -21,7 +20,7 @@ import 'task_form_view.dart';
 import 'subscriptions_list_view.dart';
 import 'appointments_list_view.dart';
 import 'tasks_list_view.dart';
-import 'settings_view.dart';
+import 'main_navigation_view.dart';
 
 class WelcomeView extends StatefulWidget {
   const WelcomeView({super.key});
@@ -148,10 +147,9 @@ class _WelcomeViewState extends State<WelcomeView> {
       typeToUse = parsed.type;
     }
     
-    // Navigate based on the determined type
+    // Navigate based on the determined type using nested navigator
     if (typeToUse == ParsedReminderType.subscription) {
-      Navigator.push(
-        context,
+      MainNavigationKeys.homeNavigatorKey.currentState?.push(
         MaterialPageRoute(
           builder: (context) => SubscriptionFormView(
             initialServiceName: parsed.title ?? 'New Subscription',
@@ -160,6 +158,7 @@ class _WelcomeViewState extends State<WelcomeView> {
             initialCurrency: _mapCurrencyCode(parsed.currencyCode),
             initialNotes: query,
           ),
+          settings: const RouteSettings(name: 'SubscriptionFormView'),
         ),
       ).then((_) => _clearInputAfterNavigation());
     } else if (typeToUse == ParsedReminderType.appointment) {
@@ -185,8 +184,7 @@ class _WelcomeViewState extends State<WelcomeView> {
         dateTime ??= DateTime.now().add(const Duration(days: 1));
       }
       
-      Navigator.push(
-        context,
+      MainNavigationKeys.homeNavigatorKey.currentState?.push(
         MaterialPageRoute(
           builder: (context) => AppointmentFormView(
             initialTitle: parsed.title ?? 'New Appointment',
@@ -194,6 +192,7 @@ class _WelcomeViewState extends State<WelcomeView> {
             initialLocation: parsed.location,
             initialNotes: query,
           ),
+          settings: const RouteSettings(name: 'AppointmentFormView'),
         ),
       ).then((_) => _clearInputAfterNavigation());
     } else if (typeToUse == ParsedReminderType.task) {
@@ -217,14 +216,14 @@ class _WelcomeViewState extends State<WelcomeView> {
         );
       }
       
-      Navigator.push(
-        context,
+      MainNavigationKeys.homeNavigatorKey.currentState?.push(
         MaterialPageRoute(
           builder: (context) => TaskFormView(
             initialTitle: parsed.title ?? 'New Task',
             initialDueDate: dueDate,
             initialNotes: query,
           ),
+          settings: const RouteSettings(name: 'TaskFormView'),
         ),
       ).then((_) => _clearInputAfterNavigation());
     } else {
@@ -248,29 +247,37 @@ class _WelcomeViewState extends State<WelcomeView> {
   /// Navigate to the appropriate list screen based on category
   void _navigateToListScreen(String? category) {
     Widget? screen;
+    String? routeName;
     
     switch (category) {
       case 'subscription':
         screen = const SubscriptionsListView();
+        routeName = 'SubscriptionsListView';
         break;
       case 'appointment':
         screen = const AppointmentsListView();
+        routeName = 'AppointmentsListView';
         break;
       case 'task':
         screen = const TasksListView();
+        routeName = 'TasksListView';
         break;
       case 'reminder':
         // Reminders can be shown as tasks or a dedicated screen
         screen = const TasksListView();
+        routeName = 'TasksListView';
         break;
       default:
         debugPrint('Unknown category for show action: $category');
         return;
     }
     
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => screen!),
+    // Use nested navigator to keep bottom bar visible
+    MainNavigationKeys.homeNavigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (context) => screen!,
+        settings: RouteSettings(name: routeName),
+      ),
     ).then((_) {
       // Clear input when returning from list screen
       if (mounted) {
@@ -348,8 +355,7 @@ class _WelcomeViewState extends State<WelcomeView> {
     
     if (parsed.type == ParsedReminderType.subscription) {
       // Navigate to subscription form with pre-populated data (using initial values, not edit mode)
-      Navigator.push(
-        context,
+      MainNavigationKeys.homeNavigatorKey.currentState?.push(
         MaterialPageRoute(
           builder: (context) => SubscriptionFormView(
             initialServiceName: parsed.title ?? 'New Subscription',
@@ -358,6 +364,7 @@ class _WelcomeViewState extends State<WelcomeView> {
             initialCurrency: _mapCurrencyCode(parsed.currencyCode),
             initialNotes: queryToUse, // Store the original query as notes for reference
           ),
+          settings: const RouteSettings(name: 'SubscriptionFormView'),
         ),
       ).then((_) {
         // Clear input and omnibox text when returning from form
@@ -399,8 +406,7 @@ class _WelcomeViewState extends State<WelcomeView> {
       }
       
       // Navigate to appointment form with pre-populated data (using initial values, not edit mode)
-      Navigator.push(
-        context,
+      MainNavigationKeys.homeNavigatorKey.currentState?.push(
         MaterialPageRoute(
           builder: (context) => AppointmentFormView(
             initialTitle: parsed.title ?? 'New Appointment',
@@ -408,6 +414,7 @@ class _WelcomeViewState extends State<WelcomeView> {
             initialLocation: parsed.location,
             initialNotes: queryToUse, // Store the original query as notes for reference
           ),
+          settings: const RouteSettings(name: 'AppointmentFormView'),
         ),
       ).then((_) {
         // Clear input and omnibox text when returning from form
@@ -446,14 +453,14 @@ class _WelcomeViewState extends State<WelcomeView> {
       }
       
       // Navigate to task form with pre-populated data (using initial values, not edit mode)
-      Navigator.push(
-        context,
+      MainNavigationKeys.homeNavigatorKey.currentState?.push(
         MaterialPageRoute(
           builder: (context) => TaskFormView(
             initialTitle: parsed.title ?? 'New Task',
             initialDueDate: dueDate,
             initialNotes: queryToUse, // Store the original query as notes for reference
           ),
+          settings: const RouteSettings(name: 'TaskFormView'),
         ),
       ).then((_) {
         // Clear input and omnibox text when returning from form
@@ -547,14 +554,7 @@ class _WelcomeViewState extends State<WelcomeView> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
       ),
-      drawer: const AppNavigationDrawer(),
       body: SafeArea(
         top: false,
         child: Padding(

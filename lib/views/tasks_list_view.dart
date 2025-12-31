@@ -4,8 +4,8 @@ import 'package:intl/intl.dart';
 import '../providers/navigation_model.dart';
 import '../providers/task_provider.dart';
 import '../models/task.dart';
-import '../widgets/app_navigation_drawer.dart';
 import 'task_form_view.dart';
+import 'main_navigation_view.dart';
 
 class TasksListView extends StatefulWidget {
   const TasksListView({super.key});
@@ -62,14 +62,7 @@ class _TasksListViewState extends State<TasksListView> {
           return Scaffold(
             appBar: AppBar(
               title: const Text('My Tasks'),
-              leading: Builder(
-                builder: (context) => IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                ),
-              ),
             ),
-            drawer: const AppNavigationDrawer(),
             body: const Center(child: CircularProgressIndicator()),
           );
         }
@@ -89,10 +82,10 @@ class _TasksListViewState extends State<TasksListView> {
               IconButton(
                 icon: const Icon(Icons.add),
                 onPressed: () {
-                  Navigator.push(
-                    context,
+                  MainNavigationKeys.homeNavigatorKey.currentState?.push(
                     MaterialPageRoute(
                       builder: (context) => const TaskFormView(),
+                      settings: const RouteSettings(name: 'TaskFormView'),
                     ),
                   );
                 },
@@ -133,7 +126,6 @@ class _TasksListViewState extends State<TasksListView> {
               ),
             ),
           ),
-          drawer: const AppNavigationDrawer(),
           body: provider.tasks.isEmpty
               ? _buildEmptyState(context)
               : _buildTasksList(context, provider, filteredTasks),
@@ -273,12 +265,12 @@ class _TasksListViewState extends State<TasksListView> {
           ],
         ),
         onTap: () {
-          Navigator.push(
-            context,
+          MainNavigationKeys.homeNavigatorKey.currentState?.push(
             MaterialPageRoute(
               builder: (context) => TaskFormView(
                 task: task,
               ),
+              settings: const RouteSettings(name: 'TaskFormView'),
             ),
           );
         },
