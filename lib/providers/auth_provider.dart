@@ -13,6 +13,7 @@ class AuthProvider extends ChangeNotifier {
   StreamSubscription<AuthState>? _authStateSubscription;
   bool _isPasswordResetFlow = false;
   bool _isCheckingPasswordReset = false;
+  bool _isCompletingPasswordReset = false; // Flag to prevent session restoration during password reset
   DateTime? _sessionCreatedAt;
   bool? _previousEmailVerified;
 
@@ -78,6 +79,19 @@ class AuthProvider extends ChangeNotifier {
     _authStateSubscription = supabase.auth.onAuthStateChange.listen((event) async {
       debugPrint('Auth state changed: ${event.event}, Session: ${event.session != null}');
       debugPrint('Event type: ${event.event}, Previous user: ${_user?.email}, Previous email verified: $_previousEmailVerified');
+
+      // If we're completing password reset and a session is being created (from updateUser),
+      // ignore it and sign out immediately to prevent session restoration
+      if (_isCompletingPasswordReset && event.session != null) {
+        debugPrint('⚠️ [AuthProvider] Session created during password reset completion - signing out immediately');
+        await supabase.auth.signOut();
+        _user = null;
+        _sessionCreatedAt = null;
+        _previousEmailVerified = null;
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
 
       final hadSession = _user != null;
       final previousEmailVerified = _previousEmailVerified;
@@ -259,6 +273,7 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = false;
     _isPasswordResetFlow = false;
     _isCheckingPasswordReset = false;
+    _isCompletingPasswordReset = false;
     _sessionCreatedAt = null;
     _previousEmailVerified = null;
     notifyListeners();
@@ -558,13 +573,28 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('🔐 [AuthProvider] Starting password update...');
       final supabase = Supabase.instance.client;
       
+      // Set flag to prevent auth state listener from restoring session
+      _isCompletingPasswordReset = true;
+      
       debugPrint('📝 [AuthProvider] Updating password in Supabase...');
       await supabase.auth.updateUser(UserAttributes(password: newPassword));
       debugPrint('✅ [AuthProvider] Password updated successfully in Supabase');
       
-      debugPrint('🔄 [AuthProvider] Refreshing session...');
-      await refreshSession();
-      debugPrint('✅ [AuthProvider] Session refreshed');
+      // Immediately sign out to prevent Supabase from creating/refreshing a session
+      // updateUser may trigger auth state changes that create a new session
+      debugPrint('🚪 [AuthProvider] Signing out immediately after password update...');
+      await supabase.auth.signOut();
+      debugPrint('✅ [AuthProvider] Signed out from Supabase');
+      
+      // Wait a moment for auth state to propagate
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      // Manually clear user state to ensure UI updates immediately
+      _user = null;
+      _isPasswordResetFlow = false;
+      _sessionCreatedAt = null;
+      _previousEmailVerified = null;
+      debugPrint('✅ [AuthProvider] User state cleared');
       
       debugPrint('🧹 [AuthProvider] Clearing password reset flag...');
       await clearPasswordResetFlag();
@@ -576,8 +606,15 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('🔐 [AuthProvider] Old tokens are now invalid, user must log in again with new password');
       await SecureStorageService.instance.deleteSessionTokens();
       debugPrint('✅ [AuthProvider] Keychain tokens cleared after password change');
+      
+      // Clear the flag now that we're done
+      _isCompletingPasswordReset = false;
+      
+      // Notify listeners so UI updates to show login screen
+      notifyListeners();
       debugPrint('✅ [AuthProvider] Password update complete - user must re-authenticate with new password');
     } catch (e) {
+      _isCompletingPasswordReset = false;
       debugPrint('❌ [AuthProvider] Error updating password: $e');
       throw Exception('Failed to update password: $e');
     }

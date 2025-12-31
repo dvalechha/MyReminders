@@ -1,52 +1,48 @@
-**Title:** Implement Bottom Navigation Bar with Home and Settings (More) Tabs
+**Title:** Migrate Remaining Navigation Items to Settings View and Remove AppNavigationDrawer
 
 **Context:**
-The `MyReminder` Flutter application currently uses an `AppNavigationDrawer` for primary navigation. We want to introduce a `BottomNavigationBar` to provide more direct and persistent access to key sections of the app: the main `WelcomeView` and the `SettingsView`.
+Following the implementation of the `BottomNavigationBar` with "Home" (`WelcomeView`) and "More" (`SettingsView`) tabs, the `AppNavigationDrawer` currently retains "Help & Feedback" and "Logout" options. To consolidate navigation and simplify the UI, these remaining items should be moved to the `SettingsView`.
 
 **Goal:**
-Implement a `BottomNavigationBar` at the root level of the authenticated user experience that contains two primary tabs: "Home" and "More". The "Home" tab should display the `WelcomeView`, and the "More" tab should display the `SettingsView`.
+Integrate the "Help & Feedback" and "Logout" functionalities into the `SettingsView`, making the `AppNavigationDrawer` redundant, and then remove the `AppNavigationDrawer` from the application.
 
 **Current Architecture Overview:**
-- `main.dart` initializes the app and sets `AuthGate` as the home widget.
-- `AuthGate` manages authentication state and navigates to `LoginScreen`, `EmailVerificationView`, `ResetPasswordScreen`, or `WelcomeView` based on the user's status.
-- `WelcomeView` is currently the direct entry point for authenticated and verified users.
-- `AppNavigationDrawer` is located at `lib/widgets/app_navigation_drawer.dart` and accessed via a hamburger icon, leading to various app sections including Settings.
+- `MainNavigationView` now hosts the primary `Scaffold` and `BottomNavigationBar`.
+- `WelcomeView` and `SettingsView` are children of `MainNavigationView`, displayed based on the selected tab.
+- `AppNavigationDrawer` (located at `lib/widgets/app_navigation_drawer.dart`) is still present and contains "Help & Feedback" (which navigates to `HelpSuggestionView`) and "Logout" functionality.
 
 **Proposed Design Change:**
-1.  **Introduce `MainNavigationView`:** A new `StatefulWidget` that will act as the container for the `BottomNavigationBar` and its associated views.
-2.  **"Home" Tab:** When selected, this tab will display the `WelcomeView`.
-3.  **"More" Tab:** When selected, this tab will display the `SettingsView`. This tab will be the primary entry point for `SettingsView`.
-4.  **Persistent Bottom Bar:** The `BottomNavigationBar` will be visible across these main navigation views.
+1.  **Enhance `SettingsView`:** Add new UI elements (e.g., `ListTile`s) within `SettingsView` to provide access to "Help & Feedback" and "Logout" functionality.
+2.  **Migrate Functionality:** Replicate the navigation to `HelpSuggestionView` and the logout action (likely calling `logoutService.signOut()`) from `AppNavigationDrawer` into the new `SettingsView` elements.
+3.  **Remove `AppNavigationDrawer`:** Delete the `lib/widgets/app_navigation_drawer.dart` file and remove any remaining references to it in the codebase.
 
 **Affected Files (Likely):**
-*   `lib/main.dart` (Potentially, depending on how `AuthGate` is updated)
-*   `lib/widgets/auth_gate.dart` (To return the new `MainNavigationView`)
-*   A new file: `lib/views/main_navigation_view.dart` (To house the `BottomNavigationBar` and manage view switching)
-*   `lib/views/welcome_view.dart` (Will become a child of `MainNavigationView`)
-*   `lib/views/settings_view.dart` (Will become a child of `MainNavigationView`)
-*   `lib/widgets/app_navigation_drawer.dart` (Will need review and potential adjustments to avoid redundancy with Settings, or to remove Settings if it's now solely in the bottom bar).
+*   `lib/views/settings_view.dart` (To add new menu items and their actions)
+*   `lib/widgets/app_navigation_drawer.dart` (To be removed)
+*   `lib/views/welcome_view.dart` (If it contains a reference to the `AppNavigationDrawer` in its `Scaffold`)
+*   `lib/main.dart` or `lib/widgets/auth_gate.dart` (Potentially, for any top-level drawer configuration if not already handled by `MainNavigationView`).
 
 **Instructions for the Flutter Expert:**
 
-1.  **Create `MainNavigationView`:**
-    *   Create a new `StatefulWidget` named `MainNavigationView` in `lib/views/main_navigation_view.dart`.
-    *   This widget should contain a `Scaffold` with a `BottomNavigationBar`.
-    *   The `BottomNavigationBar` should have two `BottomNavigationBarItem`s:
-        *   One with `Icons.home` and the label "Home" (to show `WelcomeView`).
-        *   One with `Icons.more_horiz` (or a suitable alternative like `Icons.menu`) and the label "More" (to show `SettingsView`).
-    *   Implement logic within `MainNavigationView` to manage the `_selectedIndex` and switch between `WelcomeView` and `SettingsView` (e.g., using an `IndexedStack` to preserve state).
+1.  **Understand `AppNavigationDrawer` Contents:**
+    *   Read the file `lib/widgets/app_navigation_drawer.dart` to understand how "Help & Feedback" and "Logout" are implemented, specifically noting their navigation targets and associated actions.
+    *   Read `lib/views/welcome_view.dart` to confirm if `AppNavigationDrawer` is referenced there (e.g., as a `drawer` in its `Scaffold`).
 
-2.  **Update `AuthGate`:**
-    *   Modify `lib/widgets/auth_gate.dart` so that when a user is authenticated and verified, it returns `const MainNavigationView()` instead of `const WelcomeView()`.
+2.  **Implement in `SettingsView`:**
+    *   Open `lib/views/settings_view.dart`.
+    *   **Grouping for Help & Feedback and Logout:**
+        *   Create a new section, e.g., using a `Column` with a `Text` title or a `Divider` and `Text`, for "Support". Place a `ListTile` for "Help & Feedback" inside this section, ensuring it navigates to `HelpSuggestionView` (which exists in `lib/widgets/help_suggestion_view.dart`).
+        *   Place a `ListTile` or a prominent `ElevatedButton` for "Logout" towards the bottom of the `SettingsView`, typically after "Privacy & Data" and "About" sections. Ensure it triggers the logout process, typically by calling `Provider.of<AuthProvider>(context, listen: false).logoutService.signOut();` or a similar pattern used elsewhere in the app for logging out.
+    *   Place these new items logically within the `SettingsView`, perhaps in a new section or alongside existing account management options.
 
-3.  **Adjust `AppNavigationDrawer` (Review and potentially modify):**
-    *   Review `lib/widgets/app_navigation_drawer.dart`.
-    *   Consider removing the "Settings" entry from the `AppNavigationDrawer` if the "More" tab in the `BottomNavigationBar` is now the primary access point for settings. Ensure the `AppNavigationDrawer` continues to function correctly for any remaining navigation items.
+3.  **Remove `AppNavigationDrawer`:**
+    *   Once the functionality is migrated, delete the file `lib/widgets/app_navigation_drawer.dart`.
+    *   Search the entire project for any remaining references to `AppNavigationDrawer` and remove them. This might involve removing a `drawer` property from a `Scaffold` or an import statement.
 
-4.  **Ensure Proper Navigation:**
-    *   Verify that tapping the "Home" tab correctly navigates to `WelcomeView`.
-    *   Verify that tapping the "More" tab correctly navigates to `SettingsView`.
-    *   Ensure that the native back button functionality behaves as expected within this new navigation structure.
+4.  **Verify Navigation and Functionality:**
+    *   Ensure that "Help & Feedback" from `SettingsView` correctly opens the `HelpSuggestionView`.
+    *   Ensure that "Logout" from `SettingsView` correctly logs out the user and navigates to the login screen.
+    *   Confirm that there are no build errors or runtime crashes related to the removal of `AppNavigationDrawer`.
 
 **Desired Outcome:**
-The `MyReminder` app will have a functional `BottomNavigationBar` providing direct access to the `WelcomeView` and `SettingsView`. The app's overall navigation flow will be updated to reflect this new primary navigation pattern.
+The "Help & Feedback" and "Logout" functionalities will be seamlessly integrated into the `SettingsView`, making them accessible from the "More" tab. The `AppNavigationDrawer` will be completely removed, simplifying the app's overall navigation structure.
