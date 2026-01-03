@@ -62,6 +62,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
   bool _showAdditionalInfo = false;
 
   bool _isAuthorized = false;
+  bool _isSaving = false; // Guard against double-submission
 
   @override
   void initState() {
@@ -209,9 +210,19 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
   }
 
   Future<void> _saveSubscription() async {
+    // Prevent double-submission
+    if (_isSaving) {
+      debugPrint('⚠️ [SubscriptionForm] Save already in progress, ignoring duplicate call');
+      return;
+    }
+    
     if (!_formKey.currentState!.validate() || !_isFormValid) {
       return;
     }
+
+    setState(() {
+      _isSaving = true;
+    });
 
     final provider = Provider.of<SubscriptionProvider>(context, listen: false);
 
@@ -246,6 +257,9 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _isSaving = false; // Reset on error so user can retry
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error saving subscription: $e')),
         );
@@ -620,21 +634,30 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isFormValid ? _saveSubscription : null,
+                  onPressed: (_isFormValid && !_isSaving) ? _saveSubscription : null,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: _isFormValid ? Colors.blue : Colors.grey,
+                    backgroundColor: (_isFormValid && !_isSaving) ? Colors.blue : Colors.grey,
                   ),
-                  child: Text(
-                    widget.subscription == null
-                        ? 'Save Subscription'
-                        : 'Update Subscription',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          widget.subscription == null
+                              ? 'Save Subscription'
+                              : 'Update Subscription',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
             ),

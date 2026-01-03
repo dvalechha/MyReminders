@@ -6,6 +6,7 @@ import 'account_profile_view.dart';
 import '../utils/app_config.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/help_suggestion_view.dart';
+import '../services/notification_preferences_service.dart';
 import 'main_navigation_view.dart';
 
 class SettingsView extends StatefulWidget {
@@ -16,14 +17,29 @@ class SettingsView extends StatefulWidget {
 }
 
 class _SettingsViewState extends State<SettingsView> {
-  bool _reminderAlertsEnabled = true;
+  bool _subscriptionNotificationsEnabled = true;
   bool _taskNotificationsEnabled = true;
+  bool _appointmentNotificationsEnabled = true;
   String _appVersion = '';
+  final NotificationPreferencesService _notificationPrefs = NotificationPreferencesService.instance;
 
   @override
   void initState() {
     super.initState();
     _loadAppVersion();
+    _loadNotificationPreferences();
+  }
+
+  Future<void> _loadNotificationPreferences() async {
+    final subscriptionEnabled = await _notificationPrefs.areSubscriptionNotificationsEnabled();
+    final taskEnabled = await _notificationPrefs.areTaskNotificationsEnabled();
+    final appointmentEnabled = await _notificationPrefs.areAppointmentNotificationsEnabled();
+    
+    setState(() {
+      _subscriptionNotificationsEnabled = subscriptionEnabled;
+      _taskNotificationsEnabled = taskEnabled;
+      _appointmentNotificationsEnabled = appointmentEnabled;
+    });
   }
 
   Future<void> _loadAppVersion() async {
@@ -117,22 +133,32 @@ class _SettingsViewState extends State<SettingsView> {
           _buildSectionHeader('Notifications'),
           SwitchListTile(
             secondary: const Icon(Icons.notifications),
-            title: const Text('Reminder Alerts'),
-            subtitle: const Text('Get notified for reminders'),
-            value: _reminderAlertsEnabled,
-            onChanged: (value) {
-              setState(() => _reminderAlertsEnabled = value);
-              // TODO: Persist preference
+            title: const Text('Subscription Alerts'),
+            subtitle: const Text('Get notified for subscription renewals'),
+            value: _subscriptionNotificationsEnabled,
+            onChanged: (value) async {
+              setState(() => _subscriptionNotificationsEnabled = value);
+              await _notificationPrefs.setSubscriptionNotificationsEnabled(value);
             },
           ),
           SwitchListTile(
-            secondary: const Icon(Icons.calendar_today),
-            title: const Text('Task Due Notifications'),
+            secondary: const Icon(Icons.check_circle),
+            title: const Text('Tasks Notifications'),
             subtitle: const Text('Get notified when tasks are due'),
             value: _taskNotificationsEnabled,
-            onChanged: (value) {
+            onChanged: (value) async {
               setState(() => _taskNotificationsEnabled = value);
-              // TODO: Persist preference
+              await _notificationPrefs.setTaskNotificationsEnabled(value);
+            },
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.event),
+            title: const Text('Appointment Notifications'),
+            subtitle: const Text('Get notified for upcoming appointments'),
+            value: _appointmentNotificationsEnabled,
+            onChanged: (value) async {
+              setState(() => _appointmentNotificationsEnabled = value);
+              await _notificationPrefs.setAppointmentNotificationsEnabled(value);
             },
           ),
           const Divider(),

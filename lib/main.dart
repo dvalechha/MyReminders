@@ -50,19 +50,20 @@ Future<void> main() async {
     anonKey: supabaseAnonKey,
   );
 
-  // Initialize NotificationService at app startup
-  // This ensures notifications are ready before any provider needs them
-  debugPrint('🔔 Initializing NotificationService...');
-  try {
-    await NotificationService.instance.initialize();
-    final authorized = await NotificationService.instance.checkAuthorizationStatus();
-    debugPrint('🔔 NotificationService initialized: ${authorized ? "Authorized" : "Not authorized"}');
-  } catch (e) {
-    debugPrint('⚠️ Failed to initialize NotificationService: $e');
-    // Continue app startup even if notification initialization fails
-  }
-
+  // Start app immediately - don't block on notification initialization
   runApp(const MyReminderApp());
+  
+  // Initialize NotificationService lazily after app starts (non-blocking)
+  // This runs after the first frame is rendered, avoiding startup hang
+  Future.microtask(() async {
+    debugPrint('🔔 Initializing NotificationService (background)...');
+    try {
+      await NotificationService.instance.initialize();
+      debugPrint('🔔 NotificationService initialized');
+    } catch (e) {
+      debugPrint('⚠️ Failed to initialize NotificationService: $e');
+    }
+  });
 }
 
 class MyReminderApp extends StatelessWidget {

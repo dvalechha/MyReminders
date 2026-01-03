@@ -94,10 +94,9 @@ class NaturalLanguageParser {
     // Extract title/description (preserve original casing for readability)
     final title = _extractTitle(originalInput, type);
     
-    // Extract location (for appointments) from original input, but avoid time/date phrases
-    final location = type == ParsedReminderType.appointment 
-      ? _extractLocation(originalInput) 
-      : null;
+    // Location extraction disabled - too error-prone with NLP
+    // Users can manually fill in location in the form for better accuracy
+    const location = null;
     
     // Extract amount and currency for subscriptions
     double? amount;
@@ -267,7 +266,11 @@ class NaturalLanguageParser {
           .replaceAll(RegExp(r'\btasks?\b', caseSensitive: false), ' ')
           .replaceAll(RegExp(r'\btodos?\b', caseSensitive: false), ' ')
           .replaceAll(RegExp(r'\bto-?do\b', caseSensitive: false), ' ')
-          .replaceAll(RegExp(r'\breminder\b', caseSensitive: false), ' ');
+          .replaceAll(RegExp(r'\breminder\b', caseSensitive: false), ' ')
+          .replaceAll(RegExp(r'\bremind\s+me\b', caseSensitive: false), ' ');
+      // Remove leading filler words like 'to', 'for', 'of' that may remain after stripping keywords
+      cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+      cleaned = cleaned.replaceFirst(RegExp(r'^(?:to|for|of|about)\s+', caseSensitive: false), '');
     } else if (type == ParsedReminderType.subscription) {
       // Light cleanup for subscriptions
       cleaned = cleaned.replaceAll(RegExp(r'\bsubscriptions?\b', caseSensitive: false), ' ');
@@ -362,16 +365,33 @@ class NaturalLanguageParser {
   }
 
   static String? _extractLocation(String input) {
-    // Only treat explicit location keywords as locations
-    // and ensure captured text is not a time/date phrase
+    // First, strip time expressions from the input to avoid matching "at 5pm" as location
+    String cleanedInput = _stripTimeExpressions(input);
+    
+    // Also strip "with [person]" patterns that are not part of location
+    // but keep "with" if it's part of a venue name
+    cleanedInput = _stripPersonReferences(cleanedInput);
+    
+    // Now look for location patterns - prefer the LAST match as it's more likely
+    // to be the actual location (e.g., "at 5pm ... at his Clinic" -> "his Clinic")
     final candidates = <RegExp>[
-      RegExp(r'\bat\s+([^,]+?)(?=\s+(?:on|at|in|@)\b|\s+coming\b|\s*$)', caseSensitive: false),
-      RegExp(r'\bin\s+([^,]+?)(?=\s+(?:on|at|in|@)\b|\s+coming\b|\s*$)', caseSensitive: false),
-      RegExp(r'(?:^|\s)@\s*([^,]+?)(?=\s+(?:on|at|in|@)\b|\s+coming\b|\s*$)', caseSensitive: false),
+      // "at [location]" - capture text after "at" until end of string or comma
+      // Using greedy match but will take last occurrence
+      RegExp(r'\bat\s+([^,]+)$', caseSensitive: false),
+      RegExp(r'\bat\s+([^,]+?)(?=\s+on\s+|\s+for\s+)', caseSensitive: false),
+      // "in [location]" - for places like "in room 201"
+      RegExp(r'\bin\s+([^,]+)$', caseSensitive: false),
+      RegExp(r'\bin\s+([^,]+?)(?=\s+on\s+|\s+at\s+|\s+for\s+)', caseSensitive: false),
+      // "@ [location]"
+      RegExp(r'(?:^|\s)@\s*([^,]+)$', caseSensitive: false),
+      RegExp(r'(?:^|\s)@\s*([^,]+?)(?=\s+on\s+|\s+at\s+|\s+for\s+)', caseSensitive: false),
     ];
 
+    String? bestLocation;
+    int bestPosition = -1;
+
     for (final pattern in candidates) {
-      final matches = pattern.allMatches(input).toList();
+      final matches = pattern.allMatches(cleanedInput).toList();
       for (final match in matches) {
         final phrase = match.group(1)?.trim();
         if (phrase == null || phrase.isEmpty) continue;
@@ -380,37 +400,96 @@ class NaturalLanguageParser {
         if (_isDateOrTimePhrase(phrase)) {
           continue;
         }
-
-        // Otherwise treat as location
-        var loc = phrase.replaceAll(RegExp(r'\s+'), ' ').trim();
-        // Skip obvious handle/email-like tokens when no spaces
-        if (RegExp(r'^[\w.@-]+$').hasMatch(loc) && !loc.contains(' ')) {
+        
+        // Skip if phrase starts with time-like pattern
+        if (_startsWithTimePattern(phrase)) {
           continue;
         }
+
+        // Clean up the location
+        var loc = phrase.replaceAll(RegExp(r'\s+'), ' ').trim();
+        
+        // Remove trailing punctuation
+        loc = loc.replaceAll(RegExp(r'[.,;:!?]+$'), '').trim();
+        
+        // Skip if it looks like just a number (could be a time without am/pm)
+        if (RegExp(r'^\d+$').hasMatch(loc)) {
+          continue;
+        }
+        
         // Remove leading articles for cleanliness
         loc = loc.replaceFirst(RegExp(r'^(the|a|an)\s+', caseSensitive: false), '');
-        if (loc.isNotEmpty && loc.length < 100) {
-          return loc;
+        
+        // Valid location found - prefer the last occurrence
+        if (loc.isNotEmpty && loc.length < 100 && match.start > bestPosition) {
+          bestLocation = loc;
+          bestPosition = match.start;
         }
       }
     }
 
-    return null;
+    return bestLocation;
+  }
+
+  /// Strip time expressions like "at 5pm", "for tomorrow", etc.
+  static String _stripTimeExpressions(String input) {
+    String s = input;
+    
+    // Time patterns: "at 5pm", "at 5:30 pm", "5pm", "5:30pm"
+    s = s.replaceAll(RegExp(r'\bat\s+\d{1,2}(:\d{2})?\s*(am|pm)\b', caseSensitive: false), ' ');
+    s = s.replaceAll(RegExp(r'\bfor\s+\d{1,2}(:\d{2})?\s*(am|pm)\b', caseSensitive: false), ' ');
+    s = s.replaceAll(RegExp(r'\b\d{1,2}(:\d{2})?\s*(am|pm)\b', caseSensitive: false), ' ');
+    
+    // Relative date words with prepositions
+    s = s.replaceAll(RegExp(r'\b(for|on)\s+(tomorrow|today|tonight)\b', caseSensitive: false), ' ');
+    s = s.replaceAll(RegExp(r'\b(tomorrow|today|tonight)\b', caseSensitive: false), ' ');
+    s = s.replaceAll(RegExp(r'\bnext\s+(week|month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b', caseSensitive: false), ' ');
+    
+    // Day names
+    s = s.replaceAll(RegExp(r'\bon\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b', caseSensitive: false), ' ');
+    
+    return s.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  /// Strip "with [person]" patterns that indicate meeting participants, not locations
+  static String _stripPersonReferences(String input) {
+    String s = input;
+    
+    // "with Dr. Smith", "with John", "with the team" - but stop at location markers
+    // This pattern captures "with [name/title]" but stops before "at/in/@"
+    s = s.replaceAll(
+      RegExp(r'\bwith\s+(?:dr\.?\s+|mr\.?\s+|mrs\.?\s+|ms\.?\s+)?[A-Za-z]+(?:\s+[A-Za-z]+)?(?=\s+(?:at|in|@)\b|\s*$)', caseSensitive: false),
+      ' '
+    );
+    
+    return s.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  /// Check if phrase starts with a time-like pattern
+  static bool _startsWithTimePattern(String phrase) {
+    final p = phrase.trim().toLowerCase();
+    // Starts with a number followed by am/pm
+    if (RegExp(r'^\d{1,2}(:\d{2})?\s*(am|pm)\b').hasMatch(p)) return true;
+    // Starts with time of day
+    if (RegExp(r'^(morning|afternoon|evening|noon|midnight)\b').hasMatch(p)) return true;
+    return false;
   }
 
   static bool _isDateOrTimePhrase(String phrase) {
     final p = phrase.trim();
-    // Time patterns
-    if (RegExp(r'^\d{1,2}(:\d{2})?\s*(am|pm)$', caseSensitive: false).hasMatch(p)) return true;
-    if (RegExp(r'^at\s+\d{1,2}(:\d{2})?\s*(am|pm)$', caseSensitive: false).hasMatch(p)) return true;
-    if (RegExp(r'^@\s*\d{1,2}(:\d{2})?\s*(am|pm)$', caseSensitive: false).hasMatch(p)) return true;
+    // Time patterns - exact match or starts with time
+    if (RegExp(r'^\d{1,2}(:\d{2})?\s*(am|pm)(\s|$)', caseSensitive: false).hasMatch(p)) return true;
+    if (RegExp(r'^at\s+\d{1,2}(:\d{2})?\s*(am|pm)', caseSensitive: false).hasMatch(p)) return true;
+    if (RegExp(r'^@\s*\d{1,2}(:\d{2})?\s*(am|pm)', caseSensitive: false).hasMatch(p)) return true;
     // Relative day words
-    if (RegExp(r'\b(tomorrow|today|tonight|next\s+(week|month))\b', caseSensitive: false).hasMatch(p)) return true;
+    if (RegExp(r'^(tomorrow|today|tonight|next\s+(week|month))(\s|$)', caseSensitive: false).hasMatch(p)) return true;
     // Parts of day as time-like phrases
-    if (RegExp(r'\b(morning|afternoon|evening|noon|midnight)\b', caseSensitive: false).hasMatch(p)) return true;
+    if (RegExp(r'^(morning|afternoon|evening|noon|midnight)(\s|$)', caseSensitive: false).hasMatch(p)) return true;
     // Month-date combos
     if (RegExp(r'(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?', caseSensitive: false).hasMatch(p)) return true;
     if (RegExp(r'\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*', caseSensitive: false).hasMatch(p)) return true;
+    // Day names
+    if (RegExp(r'^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(\s|$)', caseSensitive: false).hasMatch(p)) return true;
     return false;
   }
 

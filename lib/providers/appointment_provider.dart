@@ -3,12 +3,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/appointment.dart';
 import '../database/database_helper.dart';
 import '../services/notification_service.dart';
+import '../services/notification_preferences_service.dart';
 import '../repositories/appointment_repository.dart';
 import '../repositories/category_repository.dart';
 
 class AppointmentProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final NotificationService _notificationService = NotificationService.instance;
+  final NotificationPreferencesService _notificationPrefs = NotificationPreferencesService.instance;
   final AppointmentRepository _supabaseRepository = AppointmentRepository();
   final CategoryRepository _categoryRepository = CategoryRepository();
 
@@ -41,10 +43,19 @@ class AppointmentProvider with ChangeNotifier {
       if (user != null) {
         try {
           final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
+          // Map category_id to category name using CategoryRepository
           // Map and dedupe appointments by id and by (title + date) to avoid duplicates
           final Map<String, Appointment> mapped = {};
           for (final row in supabaseRows) {
-            final appt = Appointment.fromSupabaseMap(row);
+            final categoryId = row['category_id'] as String?;
+            String? categoryName;
+            if (categoryId != null) {
+              try {
+                final category = await _categoryRepository.getById(categoryId);
+                categoryName = category?.name;
+              } catch (_) {}
+            }
+            final appt = Appointment.fromSupabaseMap(row, categoryName: categoryName);
             mapped[appt.id] = appt;
           }
 
@@ -79,28 +90,78 @@ class AppointmentProvider with ChangeNotifier {
   }
 
   Future<void> _rescheduleAllReminders() async {
-    if (!_notificationService.isAuthorized) return;
+    debugPrint('📅 [AppointmentProvider] Rescheduling all reminders...');
+    debugPrint('📅 [AppointmentProvider] Total appointments: ${_appointments.length}');
+    
+    if (!_notificationService.isAuthorized) {
+      debugPrint('⚠️ [AppointmentProvider] Notifications not authorized, skipping reschedule');
+      return;
+    }
 
+    // Check if appointment notifications are enabled
+    final appointmentNotificationsEnabled = await _notificationPrefs.areAppointmentNotificationsEnabled();
+    debugPrint('📅 [AppointmentProvider] Appointment notifications enabled: $appointmentNotificationsEnabled');
+    if (!appointmentNotificationsEnabled) {
+      debugPrint('⚠️ [AppointmentProvider] Appointment notifications disabled in settings, skipping reschedule');
+      return;
+    }
+
+    int scheduledCount = 0;
     for (final appointment in _appointments) {
       if (appointment.reminderOffset != ReminderOffset.none &&
           appointment.notificationId != null) {
         await _scheduleAppointmentReminder(appointment);
+        scheduledCount++;
       }
     }
+    debugPrint('📅 [AppointmentProvider] Rescheduled $scheduledCount appointment reminders');
+    
+    // Debug: List all pending notifications
+    await _notificationService.getPendingNotifications();
   }
 
   Future<void> _scheduleAppointmentReminder(Appointment appointment) async {
-    if (!_notificationService.isAuthorized) return;
-    if (appointment.reminderOffset == ReminderOffset.none) return;
-    if (appointment.notificationId == null) return;
+    debugPrint('📅 [AppointmentProvider] Scheduling reminder for: ${appointment.title}');
+    debugPrint('📅 [AppointmentProvider] Appointment time: ${appointment.dateTime}');
+    debugPrint('📅 [AppointmentProvider] Reminder offset: ${appointment.reminderOffset.minutes} minutes');
+    debugPrint('📅 [AppointmentProvider] Notification ID: ${appointment.notificationId}');
+    
+    if (!_notificationService.isAuthorized) {
+      debugPrint('⚠️ [AppointmentProvider] Notifications not authorized, skipping');
+      return;
+    }
+    
+    if (appointment.reminderOffset == ReminderOffset.none) {
+      debugPrint('⚠️ [AppointmentProvider] Reminder offset is none, skipping');
+      return;
+    }
+    
+    if (appointment.notificationId == null) {
+      debugPrint('⚠️ [AppointmentProvider] Notification ID is null, skipping');
+      return;
+    }
+    
+    // Check if appointment notifications are enabled
+    final appointmentNotificationsEnabled = await _notificationPrefs.areAppointmentNotificationsEnabled();
+    debugPrint('📅 [AppointmentProvider] Appointment notifications enabled: $appointmentNotificationsEnabled');
+    if (!appointmentNotificationsEnabled) {
+      debugPrint('⚠️ [AppointmentProvider] Appointment notifications disabled in settings, skipping');
+      return;
+    }
 
-    await _notificationService.scheduleTimeBasedReminder(
-      notificationId: appointment.notificationId!,
-      title: 'Upcoming Appointment',
-      body: appointment.title,
-      eventDateTime: appointment.dateTime,
-      minutesBefore: appointment.reminderOffset.minutes,
-    );
+    try {
+      await _notificationService.scheduleTimeBasedReminder(
+        notificationId: appointment.notificationId!,
+        title: 'Upcoming Appointment',
+        body: appointment.title,
+        eventDateTime: appointment.dateTime,
+        minutesBefore: appointment.reminderOffset.minutes,
+      );
+      debugPrint('✅ [AppointmentProvider] Successfully scheduled reminder for: ${appointment.title}');
+    } catch (e) {
+      debugPrint('❌ [AppointmentProvider] Error scheduling reminder: $e');
+      rethrow;
+    }
   }
 
   Future<String> addAppointment(Appointment appointment) async {
@@ -120,20 +181,41 @@ class AppointmentProvider with ChangeNotifier {
         try {
           // Get category ID if category is specified
           String? categoryId;
+          debugPrint('🏷️ [AppointmentProvider] Appointment category value: "${appointment.category}"');
+          
           if (appointment.category != null && appointment.category!.isNotEmpty) {
+            debugPrint('🏷️ [AppointmentProvider] Looking up category: "${appointment.category}"');
             final category = await _categoryRepository.getByName(appointment.category!);
             categoryId = category?.id;
             
             if (categoryId == null) {
-              debugPrint('Warning: Category "${appointment.category}" not found in Supabase.');
+              debugPrint('⚠️ [AppointmentProvider] Category "${appointment.category}" not found, using "Appointment" category');
+              // Fallback to "Appointment" category if specified category not found
+              final defaultCategory = await _categoryRepository.getByName('Appointment');
+              categoryId = defaultCategory?.id;
+            }
+            
+            if (categoryId != null) {
+              debugPrint('✅ [AppointmentProvider] Found category ID: $categoryId');
+            }
+          } else {
+            debugPrint('🏷️ [AppointmentProvider] No category specified, using "Appointment" as default');
+            // Default to "Appointment" category for appointments
+            final defaultCategory = await _categoryRepository.getByName('Appointment');
+            categoryId = defaultCategory?.id;
+            if (categoryId != null) {
+              debugPrint('✅ [AppointmentProvider] Using default category ID: $categoryId');
             }
           }
 
+          debugPrint('🏷️ [AppointmentProvider] Final categoryId for save: $categoryId');
+          
           // Convert to Supabase format and save
           final supabaseData = updatedAppointment.toSupabaseMap(
             userId: user.id,
             categoryId: categoryId,
           );
+          debugPrint('🏷️ [AppointmentProvider] Supabase data: $supabaseData');
           
           // If an appointment with the same id exists in Supabase, update it instead of creating
           final existing = await _supabaseRepository.getById(updatedAppointment.id);
@@ -195,12 +277,28 @@ class AppointmentProvider with ChangeNotifier {
         try {
           // Get category ID if category is specified
           String? categoryId;
+          debugPrint('🏷️ [AppointmentProvider] Update - Appointment category value: "${appointment.category}"');
+          
           if (appointment.category != null && appointment.category!.isNotEmpty) {
+            debugPrint('🏷️ [AppointmentProvider] Update - Looking up category: "${appointment.category}"');
             final category = await _categoryRepository.getByName(appointment.category!);
             categoryId = category?.id;
             
             if (categoryId == null) {
-              debugPrint('Warning: Category "${appointment.category}" not found in Supabase.');
+              debugPrint('⚠️ [AppointmentProvider] Update - Category "${appointment.category}" not found, using "Appointment" category');
+              final defaultCategory = await _categoryRepository.getByName('Appointment');
+              categoryId = defaultCategory?.id;
+            }
+            
+            if (categoryId != null) {
+              debugPrint('✅ [AppointmentProvider] Update - Found category ID: $categoryId');
+            }
+          } else {
+            debugPrint('🏷️ [AppointmentProvider] Update - No category specified, using "Appointment" as default');
+            final defaultCategory = await _categoryRepository.getByName('Appointment');
+            categoryId = defaultCategory?.id;
+            if (categoryId != null) {
+              debugPrint('✅ [AppointmentProvider] Update - Using default category ID: $categoryId');
             }
           }
 
@@ -223,10 +321,16 @@ class AppointmentProvider with ChangeNotifier {
         await _dbHelper.updateAppointment(updatedAppointment);
       }
 
+      debugPrint('📅 [AppointmentProvider] Checking if reminder should be scheduled (update)...');
+      debugPrint('📅 [AppointmentProvider] Reminder offset: ${updatedAppointment.reminderOffset.minutes} minutes');
+      debugPrint('📅 [AppointmentProvider] Notification ID: ${updatedAppointment.notificationId}');
+      
       if (updatedAppointment.reminderOffset != ReminderOffset.none &&
           updatedAppointment.notificationId != null) {
+        debugPrint('📅 [AppointmentProvider] Scheduling reminder (update)...');
         await _scheduleAppointmentReminder(updatedAppointment);
       } else if (updatedAppointment.notificationId != null) {
+        debugPrint('📅 [AppointmentProvider] Cancelling reminder (reminder disabled)...');
         await _notificationService.cancelReminder(updatedAppointment.notificationId!);
       }
 

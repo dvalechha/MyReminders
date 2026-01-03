@@ -44,12 +44,12 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
     final lowerSearchText = searchText.toLowerCase();
     return appointments.where((appointment) {
       final title = appointment.title.toLowerCase();
-      final category = (appointment.category ?? '').toLowerCase();
       final notes = (appointment.notes ?? '').toLowerCase();
+      final location = (appointment.location ?? '').toLowerCase();
 
       return title.contains(lowerSearchText) ||
-          category.contains(lowerSearchText) ||
-          notes.contains(lowerSearchText);
+          notes.contains(lowerSearchText) ||
+          location.contains(lowerSearchText);
     }).toList();
   }
 
@@ -74,12 +74,6 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('My Appointments'),
-            leading: Builder(
-              builder: (context) => IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: () => Scaffold.of(context).openDrawer(),
-              ),
-            ),
             actions: [
               IconButton(
                 icon: const Icon(Icons.add),
@@ -242,16 +236,6 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 4),
-            if (appointment.category != null)
-              Text(
-                appointment.category!,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
             const SizedBox(height: 4),
             Text(
               '${DateFormat('MMM d, yyyy').format(appointment.dateTime)} at ${DateFormat('h:mm a').format(appointment.dateTime)}',

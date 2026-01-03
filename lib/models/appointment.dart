@@ -117,11 +117,11 @@ class Appointment {
   }
 
   // Create from Supabase format
-  factory Appointment.fromSupabaseMap(Map<String, dynamic> map) {
+  factory Appointment.fromSupabaseMap(Map<String, dynamic> map, {String? categoryName}) {
     return Appointment(
       id: map['id'] as String,
       title: map['title'] as String,
-      category: map['category_id'] as String?,
+      category: categoryName, // Use looked-up category name instead of category_id
       dateTime: DateTime.parse(map['start_time'] as String),
       location: map['location'] as String?,
       notes: map['notes'] as String?,
