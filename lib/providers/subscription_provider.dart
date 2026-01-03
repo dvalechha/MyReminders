@@ -3,12 +3,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/subscription.dart';
 import '../database/database_helper.dart';
 import '../services/notification_service.dart';
+import '../services/notification_preferences_service.dart';
 import '../repositories/subscription_repository.dart';
 import '../repositories/category_repository.dart';
 
 class SubscriptionProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final NotificationService _notificationService = NotificationService.instance;
+  final NotificationPreferencesService _notificationPrefs = NotificationPreferencesService.instance;
   final SubscriptionRepository _supabaseRepository = SubscriptionRepository();
   final CategoryRepository _categoryRepository = CategoryRepository();
 
@@ -152,7 +154,7 @@ class SubscriptionProvider with ChangeNotifier {
           // Convert to Supabase format and save (categoryId is guaranteed to be non-null here)
           final supabaseData = updatedSubscription.toSupabaseMap(
             userId: user.id,
-            categoryId: categoryId,
+            categoryId: categoryId!,
           );
           
           // If a subscription with the same id already exists in Supabase, update it instead
@@ -176,8 +178,10 @@ class SubscriptionProvider with ChangeNotifier {
         debugPrint('Subscription saved locally only. Will sync when connection is available.');
       }
 
-      // Schedule notification if reminder is set
-      if (updatedSubscription.reminderType != 'none' &&
+      // Schedule notification if reminder is set and subscription notifications are enabled
+      final subscriptionNotificationsEnabled = await _notificationPrefs.areSubscriptionNotificationsEnabled();
+      if (subscriptionNotificationsEnabled &&
+          updatedSubscription.reminderType != 'none' &&
           updatedSubscription.reminderDaysBefore > 0 &&
           updatedSubscription.notificationId != null) {
         await _notificationService.scheduleReminder(
@@ -264,8 +268,10 @@ class SubscriptionProvider with ChangeNotifier {
         await _dbHelper.updateSubscription(updatedSubscription);
       }
 
-      // Schedule notification if reminder is set
-      if (updatedSubscription.reminderType != 'none' &&
+      // Schedule notification if reminder is set and subscription notifications are enabled
+      final subscriptionNotificationsEnabled = await _notificationPrefs.areSubscriptionNotificationsEnabled();
+      if (subscriptionNotificationsEnabled &&
+          updatedSubscription.reminderType != 'none' &&
           updatedSubscription.reminderDaysBefore > 0 &&
           updatedSubscription.notificationId != null) {
         await _notificationService.scheduleReminder(
@@ -275,7 +281,7 @@ class SubscriptionProvider with ChangeNotifier {
           notificationId: updatedSubscription.notificationId!,
         );
       } else if (updatedSubscription.notificationId != null) {
-        // Cancel notification if reminder is set to none
+        // Cancel notification if reminder is set to none or notifications are disabled
         await _notificationService.cancelReminder(updatedSubscription.notificationId!);
       }
 

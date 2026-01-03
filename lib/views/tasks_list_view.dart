@@ -43,11 +43,9 @@ class _TasksListViewState extends State<TasksListView> {
     final lowerSearchText = searchText.toLowerCase();
     return tasks.where((task) {
       final title = task.title.toLowerCase();
-      final category = (task.category ?? '').toLowerCase();
       final notes = (task.notes ?? '').toLowerCase();
 
       return title.contains(lowerSearchText) ||
-          category.contains(lowerSearchText) ||
           notes.contains(lowerSearchText);
     }).toList();
   }
@@ -72,12 +70,6 @@ class _TasksListViewState extends State<TasksListView> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('My Tasks'),
-            leading: Builder(
-              builder: (context) => IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: () => Scaffold.of(context).openDrawer(),
-              ),
-            ),
             actions: [
               IconButton(
                 icon: const Icon(Icons.add),

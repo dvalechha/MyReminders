@@ -132,8 +132,16 @@ class SecureStorageService {
   Future<bool> isRememberMeEnabled() async {
     try {
       debugPrint('🔍 [$_storageName] Checking Remember Me status in secure storage...');
-      final enabled = await _storage.read(key: 'remember_me_enabled');
-      final hasTokens = await hasSessionTokens();
+      
+      // Read both values in parallel to avoid sequential Keychain access delays
+      final results = await Future.wait([
+        _storage.read(key: 'remember_me_enabled'),
+        _storage.read(key: 'remember_me_email'),
+      ]);
+      
+      final enabled = results[0];
+      final email = results[1];
+      final hasTokens = email != null && email.isNotEmpty;
       
       debugPrint('🔍 [$_storageName] Remember Me flag value: ${enabled ?? "null"}');
       debugPrint('🔍 [$_storageName] Tokens exist: $hasTokens');

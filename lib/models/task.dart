@@ -118,11 +118,11 @@ class Task {
   }
 
   // Create from Supabase format
-  factory Task.fromSupabaseMap(Map<String, dynamic> map) {
+  factory Task.fromSupabaseMap(Map<String, dynamic> map, {String? categoryName}) {
     return Task(
       id: map['id'] as String,
       title: map['title'] as String,
-      category: map['category_id'] as String?,
+      category: categoryName, // Use looked-up category name instead of category_id
       dueDate: map['due_date'] != null
           ? DateTime.parse(map['due_date'] as String)
           : null,

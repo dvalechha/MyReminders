@@ -32,6 +32,7 @@ class _TaskFormViewState extends State<TaskFormView> {
   DateTime? _selectedDueDate;
   TaskPriority? _selectedPriority;
   ReminderOffset _selectedReminder = ReminderOffset.none;
+  bool _isSaving = false; // Guard against double-submission
 
   @override
   void initState() {
@@ -137,17 +138,26 @@ class _TaskFormViewState extends State<TaskFormView> {
   }
 
   Future<void> _saveTask() async {
+    // Prevent double-submission
+    if (_isSaving) {
+      debugPrint('⚠️ [TaskForm] Save already in progress, ignoring duplicate call');
+      return;
+    }
+
     if (!_formKey.currentState!.validate() || !_isFormValid) {
       return;
     }
+
+    setState(() {
+      _isSaving = true;
+    });
 
     final provider = Provider.of<TaskProvider>(context, listen: false);
 
     final task = Task(
       id: widget.task?.id,
       title: _titleController.text.trim(),
-      // Preserve existing category id if editing; new tasks start without a category
-      category: widget.task?.category,
+      category: widget.task?.category, // Preserve existing category if editing, null for new tasks
       dueDate: _selectedDueDate,
       priority: _selectedPriority,
       notes: _notesController.text.trim().isEmpty
@@ -168,6 +178,9 @@ class _TaskFormViewState extends State<TaskFormView> {
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _isSaving = false; // Reset on error so user can retry
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error saving task: $e')),
         );
@@ -265,8 +278,6 @@ class _TaskFormViewState extends State<TaskFormView> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  // Category input removed; category id is retained in data model
-                  const SizedBox(height: 16),
                   ListTile(
                     title: const Text('Due Date & Time *'),
                     subtitle: _selectedDueDate != null
@@ -354,19 +365,28 @@ class _TaskFormViewState extends State<TaskFormView> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isFormValid ? _saveTask : null,
+                  onPressed: (_isFormValid && !_isSaving) ? _saveTask : null,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: _isFormValid ? Colors.blue : Colors.grey,
+                    backgroundColor: (_isFormValid && !_isSaving) ? Colors.blue : Colors.grey,
                   ),
-                  child: Text(
-                    widget.task == null ? 'Save Task' : 'Update Task',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          widget.task == null ? 'Save Task' : 'Update Task',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
             ),

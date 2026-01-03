@@ -4,12 +4,14 @@ import '../models/task.dart';
 import '../models/appointment.dart';
 import '../database/database_helper.dart';
 import '../services/notification_service.dart';
+import '../services/notification_preferences_service.dart';
 import '../repositories/task_repository.dart';
 import '../repositories/category_repository.dart';
 
 class TaskProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final NotificationService _notificationService = NotificationService.instance;
+  final NotificationPreferencesService _notificationPrefs = NotificationPreferencesService.instance;
   final TaskRepository _supabaseRepository = TaskRepository();
   final CategoryRepository _categoryRepository = CategoryRepository();
 
@@ -42,10 +44,19 @@ class TaskProvider with ChangeNotifier {
       if (user != null) {
         try {
           final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
+          // Map category_id to category name using CategoryRepository
           // Map and dedupe tasks by id and by (title + dueDate)
           final Map<String, Task> mapped = {};
           for (final row in supabaseRows) {
-            final t = Task.fromSupabaseMap(row);
+            final categoryId = row['category_id'] as String?;
+            String? categoryName;
+            if (categoryId != null) {
+              try {
+                final category = await _categoryRepository.getById(categoryId);
+                categoryName = category?.name;
+              } catch (_) {}
+            }
+            final t = Task.fromSupabaseMap(row, categoryName: categoryName);
             mapped[t.id] = t;
           }
 
@@ -101,6 +112,10 @@ class TaskProvider with ChangeNotifier {
     if (task.reminderOffset == ReminderOffset.none) return;
     if (task.dueDate == null) return;
     if (task.notificationId == null) return;
+    
+    // Check if task notifications are enabled
+    final taskNotificationsEnabled = await _notificationPrefs.areTaskNotificationsEnabled();
+    if (!taskNotificationsEnabled) return;
 
     await _notificationService.scheduleTimeBasedReminder(
       notificationId: task.notificationId!,
@@ -128,12 +143,30 @@ class TaskProvider with ChangeNotifier {
         try {
           // Get category ID if category is specified
           String? categoryId;
+          debugPrint('🏷️ [TaskProvider] Task category value: "${task.category}"');
+          
           if (task.category != null && task.category!.isNotEmpty) {
+            debugPrint('🏷️ [TaskProvider] Looking up category: "${task.category}"');
             final category = await _categoryRepository.getByName(task.category!);
             categoryId = category?.id;
             
             if (categoryId == null) {
-              debugPrint('Warning: Category "${task.category}" not found in Supabase.');
+              debugPrint('⚠️ [TaskProvider] Category "${task.category}" not found, using "Task" category');
+              // Fallback to "Task" category if specified category not found
+              final defaultCategory = await _categoryRepository.getByName('Task');
+              categoryId = defaultCategory?.id;
+            }
+            
+            if (categoryId != null) {
+              debugPrint('✅ [TaskProvider] Found category ID: $categoryId');
+            }
+          } else {
+            debugPrint('🏷️ [TaskProvider] No category specified, using "Task" as default');
+            // Default to "Task" category for tasks
+            final defaultCategory = await _categoryRepository.getByName('Task');
+            categoryId = defaultCategory?.id;
+            if (categoryId != null) {
+              debugPrint('✅ [TaskProvider] Using default category ID: $categoryId');
             }
           }
 
@@ -204,12 +237,28 @@ class TaskProvider with ChangeNotifier {
         try {
           // Get category ID if category is specified
           String? categoryId;
+          debugPrint('🏷️ [TaskProvider] Update - Task category value: "${task.category}"');
+          
           if (task.category != null && task.category!.isNotEmpty) {
+            debugPrint('🏷️ [TaskProvider] Update - Looking up category: "${task.category}"');
             final category = await _categoryRepository.getByName(task.category!);
             categoryId = category?.id;
             
             if (categoryId == null) {
-              debugPrint('Warning: Category "${task.category}" not found in Supabase.');
+              debugPrint('⚠️ [TaskProvider] Update - Category "${task.category}" not found, using "Task" category');
+              final defaultCategory = await _categoryRepository.getByName('Task');
+              categoryId = defaultCategory?.id;
+            }
+            
+            if (categoryId != null) {
+              debugPrint('✅ [TaskProvider] Update - Found category ID: $categoryId');
+            }
+          } else {
+            debugPrint('🏷️ [TaskProvider] Update - No category specified, using "Task" as default');
+            final defaultCategory = await _categoryRepository.getByName('Task');
+            categoryId = defaultCategory?.id;
+            if (categoryId != null) {
+              debugPrint('✅ [TaskProvider] Update - Using default category ID: $categoryId');
             }
           }
 

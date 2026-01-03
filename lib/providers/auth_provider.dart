@@ -30,16 +30,33 @@ class AuthProvider extends ChangeNotifier {
     final supabase = Supabase.instance.client;
 
     debugPrint('🚀 [AuthProvider] Initializing authentication...');
+    
+    // Step 1: Get current user synchronously (fast operation)
     _user = supabase.auth.currentUser;
     _previousEmailVerified = _user?.emailConfirmedAt != null;
     
+    // Step 2: Set up auth state listener immediately (non-blocking)
+    _setupAuthStateListener(supabase);
+    
+    // Step 3: Set loading to false and notify - allows first frame to render
+    _isLoading = false;
+    notifyListeners();
+    
+    // Step 4: Perform heavy async operations in background after first frame
+    // This prevents blocking the main thread during app startup
+    Future.microtask(() async {
+      await _performBackgroundAuthChecks(supabase);
+    });
+  }
+  
+  /// Perform heavy auth checks in background (Keychain access, network calls)
+  Future<void> _performBackgroundAuthChecks(SupabaseClient supabase) async {
     if (_user != null) {
       debugPrint('👤 [AuthProvider] Supabase session found on startup');
       debugPrint('👤 [AuthProvider] User email: ${_user?.email}');
       debugPrint('👤 [AuthProvider] Session restored by Supabase (built-in persistence)');
       
-      // Check if "Remember Me" is enabled
-      // If user exists but Remember Me is not enabled, clear the session
+      // Check if "Remember Me" is enabled (Keychain access - can be slow)
       debugPrint('🔍 [AuthProvider] Checking Remember Me status in Keychain...');
       final rememberMeEnabled = await SecureStorageService.instance.isRememberMeEnabled();
       
@@ -52,30 +69,26 @@ class AuthProvider extends ChangeNotifier {
         _previousEmailVerified = null;
         _sessionCreatedAt = null;
         debugPrint('✅ [AuthProvider] Session cleared - user will see login screen');
+        notifyListeners();
       } else {
         debugPrint('✅ [AuthProvider] Remember Me ENABLED in Keychain');
         debugPrint('✅ [AuthProvider] Session will be kept - user stays logged in');
         debugPrint('ℹ️ [AuthProvider] Note: Supabase restored session automatically, Keychain tokens are available for future use');
         _sessionCreatedAt = DateTime.now();
-        // Await the email verification check to ensure sign out happens before listener setup
+        // Check email verification
         await _checkEmailVerificationOnInit();
       }
     } else {
       debugPrint('👤 [AuthProvider] No Supabase session found on startup');
-      debugPrint('🔍 [AuthProvider] Checking if Keychain tokens exist...');
-      final hasTokens = await SecureStorageService.instance.hasSessionTokens();
-      if (hasTokens) {
-        debugPrint('⚠️ [AuthProvider] Keychain tokens exist but no Supabase session');
-        debugPrint('⚠️ [AuthProvider] This means Supabase session expired or was cleared');
-        debugPrint('ℹ️ [AuthProvider] User will need to log in again');
-      } else {
-        debugPrint('ℹ️ [AuthProvider] No Keychain tokens found - user needs to log in');
-      }
+      // Skip the token check log - not critical for startup
     }
-
-    _isLoading = false;
-    notifyListeners();
-
+    
+    // Check for password reset flow
+    _checkPasswordResetOnInit();
+  }
+  
+  /// Set up the auth state change listener
+  void _setupAuthStateListener(SupabaseClient supabase) {
     _authStateSubscription = supabase.auth.onAuthStateChange.listen((event) async {
       debugPrint('Auth state changed: ${event.event}, Session: ${event.session != null}');
       debugPrint('Event type: ${event.event}, Previous user: ${_user?.email}, Previous email verified: $_previousEmailVerified');
@@ -177,8 +190,6 @@ class AuthProvider extends ChangeNotifier {
 
     // Register subscription with LogoutService so it can be cancelled on logout
     LogoutService.instance.setAuthStateSubscription(_authStateSubscription);
-
-    _checkPasswordResetOnInit();
   }
 
   Future<void> _checkEmailVerificationOnInit() async {

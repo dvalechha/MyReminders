@@ -33,6 +33,7 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
 
   DateTime _selectedDateTime = DateTime.now();
   ReminderOffset _selectedReminder = ReminderOffset.none;
+  bool _isSaving = false; // Guard against double-submission
 
   @override
   void initState() {
@@ -141,16 +142,28 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
   }
 
   Future<void> _saveAppointment() async {
+    // Prevent double-submission
+    if (_isSaving) {
+      debugPrint('⚠️ [AppointmentForm] Save already in progress, ignoring duplicate call');
+      return;
+    }
+
     if (!_formKey.currentState!.validate() || !_isFormValid) {
       return;
     }
 
+    setState(() {
+      _isSaving = true;
+    });
+
     final provider = Provider.of<AppointmentProvider>(context, listen: false);
+
+    debugPrint('💾 [AppointmentForm] Saving appointment...');
 
     final appointment = Appointment(
       id: widget.appointment?.id,
       title: _titleController.text.trim(),
-      category: null, // Category removed - generic appointments only
+      category: null, // Category is automatically set to "Appointment" by provider
       dateTime: _selectedDateTime,
       location: _locationController.text.trim().isEmpty
           ? null
@@ -173,6 +186,9 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _isSaving = false; // Reset on error so user can retry
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error saving appointment: $e')),
         );
@@ -347,21 +363,30 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isFormValid ? _saveAppointment : null,
+                  onPressed: (_isFormValid && !_isSaving) ? _saveAppointment : null,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: _isFormValid ? Colors.blue : Colors.grey,
+                    backgroundColor: (_isFormValid && !_isSaving) ? Colors.blue : Colors.grey,
                   ),
-                  child: Text(
-                    widget.appointment == null
-                        ? 'Save Appointment'
-                        : 'Update Appointment',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          widget.appointment == null
+                              ? 'Save Appointment'
+                              : 'Update Appointment',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
             ),

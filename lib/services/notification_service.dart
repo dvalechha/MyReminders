@@ -328,6 +328,13 @@ class NotificationService {
     required DateTime eventDateTime,
     required int minutesBefore,
   }) async {
+    debugPrint('🔔 [NotificationService] scheduleTimeBasedReminder called');
+    debugPrint('🔔 [NotificationService] Title: $title');
+    debugPrint('🔔 [NotificationService] Body: $body');
+    debugPrint('🔔 [NotificationService] Event DateTime: $eventDateTime');
+    debugPrint('🔔 [NotificationService] Minutes before: $minutesBefore');
+    debugPrint('🔔 [NotificationService] Notification ID: $notificationId');
+    
     if (!_authorized) {
       debugPrint('⚠️ [NotificationService] Notifications not authorized, skipping schedule');
       return;
@@ -338,11 +345,19 @@ class NotificationService {
       await initialize();
     }
 
-    if (minutesBefore <= 0) return;
+    if (minutesBefore <= 0) {
+      debugPrint('⚠️ [NotificationService] minutesBefore is <= 0, skipping');
+      return;
+    }
 
     final reminderTime = eventDateTime.subtract(Duration(minutes: minutesBefore));
+    debugPrint('🔔 [NotificationService] Calculated reminder time: $reminderTime');
+    debugPrint('🔔 [NotificationService] Current time: ${DateTime.now()}');
 
-    if (reminderTime.isBefore(DateTime.now())) return;
+    if (reminderTime.isBefore(DateTime.now())) {
+      debugPrint('⚠️ [NotificationService] Reminder time is in the past, skipping');
+      return;
+    }
 
     final androidDetails = AndroidNotificationDetails(
       'time_based_reminders',
@@ -369,18 +384,28 @@ class NotificationService {
     );
 
     try {
+      final notificationIdInt = notificationId.hashCode.abs();
+      final scheduledTime = tz.TZDateTime.from(reminderTime, tz.local);
+      
+      debugPrint('🔔 [NotificationService] Scheduling notification with ID: $notificationIdInt');
+      debugPrint('🔔 [NotificationService] Scheduled time (TZ): $scheduledTime');
+      
       await _notifications.zonedSchedule(
-        notificationId.hashCode.abs(),
+        notificationIdInt,
         title,
         body,
-        tz.TZDateTime.from(reminderTime, tz.local),
+        scheduledTime,
         notificationDetails,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       );
 
-      debugPrint('✅ [NotificationService] Time-based reminder scheduled for $reminderTime (notificationId: $notificationId)');
-    } catch (e) {
+      debugPrint('✅ [NotificationService] Time-based reminder scheduled successfully');
+      debugPrint('✅ [NotificationService] Scheduled for: $scheduledTime');
+      debugPrint('✅ [NotificationService] Notification ID (int): $notificationIdInt');
+      debugPrint('✅ [NotificationService] Notification ID (string): $notificationId');
+    } catch (e, stackTrace) {
       debugPrint('❌ [NotificationService] Error scheduling time-based reminder: $e');
+      debugPrint('❌ [NotificationService] Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -392,6 +417,21 @@ class NotificationService {
       debugPrint('✅ [NotificationService] All notifications cancelled');
     } catch (e) {
       debugPrint('❌ [NotificationService] Error cancelling all notifications: $e');
+    }
+  }
+
+  /// Get all pending notifications (for debugging)
+  Future<List<PendingNotificationRequest>> getPendingNotifications() async {
+    try {
+      final pending = await _notifications.pendingNotificationRequests();
+      debugPrint('📋 [NotificationService] Found ${pending.length} pending notifications');
+      for (final notification in pending) {
+        debugPrint('📋 [NotificationService] - ID: ${notification.id}, Title: ${notification.title}, Body: ${notification.body}');
+      }
+      return pending;
+    } catch (e) {
+      debugPrint('❌ [NotificationService] Error getting pending notifications: $e');
+      return [];
     }
   }
 }

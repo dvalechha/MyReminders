@@ -3,7 +3,7 @@ Feature List:
 ## General
 1. Rename reference to Custos from MyReminder. Ideal if we can use create a property file and refer the app name from there. The same propeerty file, can be used latter for other hard coded values or showing Exception msgs -- Done
 
-2. How to navigate back to app home, if I have move further in the app. IOS/Andoid back is always an option but shouldn't there be an option on the app control, like a home or something ?
+2. How to navigate back to app home, if I have move further in the app. IOS/Andoid back is always an option but shouldn't there be an option on the app control, like a home or something ? -- Done
 
 3. For sign up confirmation and pwd reset emails being sent , how can we customize it to reflect that the emails are from Custos and not from SupaBase ? I dont want to reveal my server technology to users.
 
@@ -19,7 +19,7 @@ Feature List:
 6. We have added a Display name on the SignUp page, I was wondering if we can use the display name as the Icon for settings instead of the default 3 bar style settings icon ? -- Done
 
 ## Sign Up screen
-1. Build eye for hide/show password on password and confirm-password fields
+1. Build eye for hide/show password on password and confirm-password fields -- Done
 
 ## Full Agenda:
 - Build the view
