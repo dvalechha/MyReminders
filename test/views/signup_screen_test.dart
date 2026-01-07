@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:my_reminder/views/login_screen.dart';
+import 'package:my_reminder/views/signup_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:my_reminder/providers/auth_provider.dart';
-import 'package:my_reminder/providers/navigation_model.dart';
-import 'package:my_reminder/providers/user_profile_provider.dart';
 import '../helpers/test_setup.dart';
 
-// Mock Provider if needed, but for simple widget finding we might not need full mocks if we wrap in Provider
 class MockAuthProvider extends ChangeNotifier implements AuthProvider {
   @override
   bool isLoading = false;
@@ -25,31 +22,31 @@ void main() {
     await teardownSupabaseForTests();
   });
 
-  testWidgets('LoginScreen has email and password fields', (WidgetTester tester) async {
-    // We need to wrap the widget with required providers
+  testWidgets('SignupScreen has all required fields', (WidgetTester tester) async {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider<AuthProvider>(create: (_) => MockAuthProvider()),
-          ChangeNotifierProvider<NavigationModel>(create: (_) => NavigationModel()),
-          ChangeNotifierProvider<UserProfileProvider>(create: (_) => UserProfileProvider()),
         ],
         child: const MaterialApp(
-          home: LoginScreen(),
+          home: SignupScreen(),
         ),
       ),
     );
 
-    // Verify email field exists
+    // Verify fields exist
+    expect(find.widgetWithText(TextFormField, 'Display Name'), findsOneWidget);
     expect(find.widgetWithText(TextFormField, 'Email'), findsOneWidget);
-
-    // Verify password field exists
     expect(find.widgetWithText(TextFormField, 'Password'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Confirm Password'), findsOneWidget);
 
-    // Verify login button exists
-    expect(find.widgetWithText(ElevatedButton, 'Login'), findsOneWidget);
+    // Verify button exists
+    expect(find.widgetWithText(ElevatedButton, 'Create Account'), findsOneWidget);
 
-    // Verify forgot password button exists
-    expect(find.text('Forgot Password?'), findsOneWidget);
+    // Verify Google sign up button
+    expect(find.text('Continue with Google'), findsOneWidget);
+
+    // Verify login link
+    expect(find.text('Already have an account? Log in'), findsOneWidget);
   });
 }
