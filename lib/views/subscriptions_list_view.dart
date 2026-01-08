@@ -31,23 +31,36 @@ class SubscriptionsListView extends StatefulWidget {
 class _SubscriptionsListViewState extends State<SubscriptionsListView> {
   String _searchText = '';
   bool _isChartExpanded = true;
+  bool _hasLoaded = false;
 
   @override
   void initState() {
     super.initState();
     // Use a PostFrameCallback to ensure the context is available
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<SubscriptionProvider>(context, listen: false).loadSubscriptions();
+      final provider = Provider.of<SubscriptionProvider>(context, listen: false);
+      // Only load if we haven't loaded yet or if the list is empty
+      if (!_hasLoaded || provider.subscriptions.isEmpty) {
+        provider.loadSubscriptions();
+        _hasLoaded = true;
+      }
     });
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Refresh data every time dependencies change (e.g., when returning to this view)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<SubscriptionProvider>(context, listen: false).loadSubscriptions();
-    });
+    // Only refresh when returning to this view (not on every rebuild)
+    // Check if subscriptions are already loaded to avoid unnecessary reloads
+    if (_hasLoaded) {
+      final provider = Provider.of<SubscriptionProvider>(context, listen: false);
+      // Only reload if subscriptions list is empty (might have been cleared)
+      if (provider.subscriptions.isEmpty && !provider.isLoading) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          provider.loadSubscriptions();
+        });
+      }
+    }
   }
 
   List<Subscription> _filterSubscriptions(

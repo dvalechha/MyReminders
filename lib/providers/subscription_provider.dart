@@ -6,6 +6,7 @@ import '../services/notification_service.dart';
 import '../services/notification_preferences_service.dart';
 import '../repositories/subscription_repository.dart';
 import '../repositories/category_repository.dart';
+import '../models/category.dart' as models;
 
 class SubscriptionProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
@@ -48,20 +49,23 @@ class SubscriptionProvider with ChangeNotifier {
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
         try {
+          // PERFORMANCE OPTIMIZATION: Fetch all categories once instead of N queries
+          final allCategories = await _categoryRepository.getAll();
+          final categoryMap = <String, models.Category>{};
+          for (final category in allCategories) {
+            categoryMap[category.id] = category;
+          }
+
           final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
-          // Map category_id to enum using CategoryRepository when possible
+          // Map category_id to enum using pre-fetched category map
           // Map rows to Subscription objects and deduplicate by id
           final Map<String, Subscription> mapped = {};
           for (final row in supabaseRows) {
             final categoryId = row['category_id'] as String?;
             SubscriptionCategory categoryEnum = SubscriptionCategory.other;
-            if (categoryId != null) {
-              try {
-                final category = await _categoryRepository.getById(categoryId);
-                if (category != null) {
-                  categoryEnum = SubscriptionCategory.fromString(category.name);
-                }
-              } catch (_) {}
+            if (categoryId != null && categoryMap.containsKey(categoryId)) {
+              final category = categoryMap[categoryId]!;
+              categoryEnum = SubscriptionCategory.fromString(category.name);
             }
             final sub = Subscription.fromSupabaseMap(row, categoryEnum);
             mapped[sub.id] = sub; // last-one-wins, removes duplicates by id

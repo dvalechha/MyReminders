@@ -77,13 +77,23 @@ class _MainNavigationViewState extends State<MainNavigationView> {
               currentIndex: _selectedIndex,
               onTap: _onItemTapped,
               type: BottomNavigationBarType.fixed,
+              elevation: 0,
+              selectedFontSize: 11,
+              unselectedFontSize: 11,
+              iconSize: 22,
               items: const [
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.home),
+                  icon: Padding(
+                    padding: EdgeInsets.only(bottom: 2),
+                    child: Icon(Icons.home),
+                  ),
                   label: 'Home',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.more_horiz),
+                  icon: Padding(
+                    padding: EdgeInsets.only(bottom: 2),
+                    child: Icon(Icons.more_horiz),
+                  ),
                   label: 'More',
                 ),
               ],

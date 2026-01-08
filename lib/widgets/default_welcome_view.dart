@@ -58,6 +58,10 @@ class DefaultWelcomeView extends StatelessWidget {
               // In bounded context (inside Expanded), use Expanded with ListView
               Expanded(
                 child: ListView.separated(
+                  // Clip content to prevent it from being drawn behind other UI elements
+                  clipBehavior: Clip.antiAlias,
+                  // Add padding on both ends to ensure first and last items are fully visible
+                  padding: const EdgeInsets.only(top: 4, bottom: 16),
                   itemCount: _exampleCommands.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
