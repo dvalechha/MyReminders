@@ -18,6 +18,29 @@ Future<void> setupSupabaseForTests() async {
     },
   );
 
+  // Mock platform channels for flutter_secure_storage
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+    const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+    (MethodCall methodCall) async {
+      // Handle FlutterSecureStorage methods
+      switch (methodCall.method) {
+        case 'read':
+          return null; // Return null for any read
+        case 'write':
+        case 'delete':
+        case 'deleteAll':
+          return null; // Return success (void/null)
+        case 'readAll':
+          return <String, String>{}; // Return empty map
+        case 'containsKey':
+          return false;
+        default:
+          return null;
+      }
+    },
+  );
+
   // Initialize Supabase with test credentials
   try {
     await Supabase.initialize(
@@ -42,6 +65,12 @@ Future<void> teardownSupabaseForTests() async {
     null,
   );
 
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+    const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+    null,
+  );
+
   // Dispose Supabase instance
   try {
     await Supabase.instance.dispose();
@@ -51,4 +80,3 @@ Future<void> teardownSupabaseForTests() async {
     debugPrint('⚠️ Error disposing Supabase: $e');
   }
 }
-
