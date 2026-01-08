@@ -7,6 +7,7 @@ import '../services/notification_service.dart';
 import '../services/notification_preferences_service.dart';
 import '../repositories/task_repository.dart';
 import '../repositories/category_repository.dart';
+import '../models/category.dart' as models;
 
 class TaskProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
@@ -43,18 +44,22 @@ class TaskProvider with ChangeNotifier {
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
         try {
+          // PERFORMANCE OPTIMIZATION: Fetch all categories once instead of N queries
+          final allCategories = await _categoryRepository.getAll();
+          final categoryMap = <String, models.Category>{};
+          for (final category in allCategories) {
+            categoryMap[category.id] = category;
+          }
+
           final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
-          // Map category_id to category name using CategoryRepository
+          // Map category_id to category name using pre-fetched category map
           // Map and dedupe tasks by id and by (title + dueDate)
           final Map<String, Task> mapped = {};
           for (final row in supabaseRows) {
             final categoryId = row['category_id'] as String?;
             String? categoryName;
-            if (categoryId != null) {
-              try {
-                final category = await _categoryRepository.getById(categoryId);
-                categoryName = category?.name;
-              } catch (_) {}
+            if (categoryId != null && categoryMap.containsKey(categoryId)) {
+              categoryName = categoryMap[categoryId]!.name;
             }
             final t = Task.fromSupabaseMap(row, categoryName: categoryName);
             mapped[t.id] = t;

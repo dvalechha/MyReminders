@@ -6,6 +6,7 @@ import '../services/notification_service.dart';
 import '../services/notification_preferences_service.dart';
 import '../repositories/appointment_repository.dart';
 import '../repositories/category_repository.dart';
+import '../models/category.dart' as models;
 
 class AppointmentProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
@@ -42,18 +43,22 @@ class AppointmentProvider with ChangeNotifier {
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
         try {
+          // PERFORMANCE OPTIMIZATION: Fetch all categories once instead of N queries
+          final allCategories = await _categoryRepository.getAll();
+          final categoryMap = <String, models.Category>{};
+          for (final category in allCategories) {
+            categoryMap[category.id] = category;
+          }
+
           final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
-          // Map category_id to category name using CategoryRepository
+          // Map category_id to category name using pre-fetched category map
           // Map and dedupe appointments by id and by (title + date) to avoid duplicates
           final Map<String, Appointment> mapped = {};
           for (final row in supabaseRows) {
             final categoryId = row['category_id'] as String?;
             String? categoryName;
-            if (categoryId != null) {
-              try {
-                final category = await _categoryRepository.getById(categoryId);
-                categoryName = category?.name;
-              } catch (_) {}
+            if (categoryId != null && categoryMap.containsKey(categoryId)) {
+              categoryName = categoryMap[categoryId]!.name;
             }
             final appt = Appointment.fromSupabaseMap(row, categoryName: categoryName);
             mapped[appt.id] = appt;
