@@ -35,3 +35,7 @@ Feature List:
 
 Bugs:
 - Home button brings user back to the same view he was last one
+
+## Pro Features
+1. LLM Integration for advanced Natural Language Processing.
+2. Integration with Google Calendar for appointment management.
