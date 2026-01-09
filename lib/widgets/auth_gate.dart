@@ -42,9 +42,9 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     try {
       if (mounted) {
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        // Wait a bit for Supabase to process the deep link and create session
-        // Increased delay to ensure session is fully established
-        await Future.delayed(const Duration(milliseconds: 1500));
+        // Small delay to allow Supabase to process the deep link
+        // Reduced delay to improve startup performance
+        await Future.delayed(const Duration(milliseconds: 300));
         
         // Check if password reset was initiated
         final shouldShow = await authProvider.checkPasswordResetFlow();

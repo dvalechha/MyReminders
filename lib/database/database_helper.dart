@@ -22,7 +22,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -71,7 +71,8 @@ class DatabaseHelper {
         notes TEXT,
         reminderOffset INTEGER NOT NULL,
         notificationId TEXT,
-        createdDate TEXT NOT NULL
+        createdDate TEXT NOT NULL,
+        isCompleted INTEGER NOT NULL DEFAULT 0
       )
     ''');
   }
@@ -105,6 +106,16 @@ class DatabaseHelper {
           createdDate TEXT NOT NULL
         )
       ''');
+    }
+    
+    if (oldVersion < 3) {
+      // Add isCompleted column to tasks table
+      try {
+        await db.execute('ALTER TABLE tasks ADD COLUMN isCompleted INTEGER NOT NULL DEFAULT 0');
+      } catch (e) {
+        // Column might already exist, ignore error
+        print('Note: isCompleted column may already exist: $e');
+      }
     }
   }
 

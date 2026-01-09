@@ -23,27 +23,59 @@ class TaskProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
 
   TaskProvider() {
-    loadTasks();
+    // Defer initialization to avoid blocking app startup
+    // Data will be loaded when the TasksListView is actually shown
     _initializeNotifications();
   }
 
   Future<void> _initializeNotifications() async {
-    await _notificationService.initialize();
-    await _notificationService.checkAuthorizationStatus();
+    // Initialize notifications in background (non-blocking)
+    Future.microtask(() async {
+      try {
+        await _notificationService.initialize();
+        await _notificationService.checkAuthorizationStatus();
+      } catch (e) {
+        debugPrint('Warning: Failed to initialize notifications: $e');
+      }
+    });
   }
 
-  Future<void> loadTasks() async {
+  Future<void> loadTasks({bool forceRefresh = false}) async {
+    // Don't reload if already loading to prevent duplicate requests
+    if (_isLoading && !forceRefresh) {
+      return;
+    }
+    
+    // Don't load if already loaded and not forcing refresh
+    if (_tasks.isNotEmpty && !forceRefresh) {
+      return;
+    }
+
     _isLoading = true;
     notifyListeners();
 
     try {
       // Clear existing tasks before loading new data to prevent stale data
       _tasks.clear();
-
-      // Always attempt to fetch latest from Supabase when available
+      
+      // Check authentication before attempting to load
       final user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
+      if (user == null) {
+        // Not authenticated - try loading from local database only
         try {
+          final localTasks = await _dbHelper.getAllTasks();
+          _tasks = localTasks;
+        } catch (e) {
+          debugPrint('Warning: Failed to load tasks from local database: $e');
+          _tasks = [];
+        }
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      // Fetch latest from Supabase (user is already checked above)
+      try {
           // PERFORMANCE OPTIMIZATION: Fetch all categories once instead of N queries
           final allCategories = await _categoryRepository.getAll();
           final categoryMap = <String, models.Category>{};
@@ -87,10 +119,7 @@ class TaskProvider with ChangeNotifier {
           debugPrint('Warning: Failed to fetch tasks from Supabase, falling back to local: $e');
           _tasks = await _dbHelper.getAllTasks();
         }
-      } else {
-        // Fallback to local when user not authenticated
-        _tasks = await _dbHelper.getAllTasks();
-      }
+      
       await _rescheduleAllReminders();
     } catch (e) {
       print('Error loading tasks: $e');
@@ -298,6 +327,16 @@ class TaskProvider with ChangeNotifier {
     } catch (e) {
       print('Error updating task: $e');
       rethrow;
+    }
+  }
+
+  Future<void> toggleTaskCompletion(String taskId) async {
+    try {
+      final task = _tasks.firstWhere((t) => t.id == taskId);
+      final updatedTask = task.copyWith(isCompleted: !task.isCompleted);
+      await updateTask(updatedTask);
+    } catch (e) {
+      print('Error toggling task completion: $e');
     }
   }
 

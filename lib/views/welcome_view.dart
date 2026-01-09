@@ -553,6 +553,7 @@ class _WelcomeViewState extends State<WelcomeView> {
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         elevation: 0,
+        scrolledUnderElevation: 0,
         backgroundColor: Colors.transparent,
       ),
       body: SafeArea(

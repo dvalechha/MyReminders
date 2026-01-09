@@ -27,6 +27,8 @@ class _UnifiedAgendaViewState extends State<UnifiedAgendaView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Upcoming Agenda'),
+        elevation: 0,
+        scrolledUnderElevation: 0,
       ),
       body: items.isEmpty
           ? const Center(child: Text('No upcoming items'))
