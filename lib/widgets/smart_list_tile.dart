@@ -14,6 +14,7 @@ class SmartListTile extends StatelessWidget {
   final Color statusColor;
   final VoidCallback? onTap;
   final EdgeInsetsGeometry? padding;
+  final List<BoxShadow>? boxShadow;
 
   const SmartListTile({
     super.key,
@@ -21,6 +22,7 @@ class SmartListTile extends StatelessWidget {
     required this.statusColor,
     this.onTap,
     this.padding,
+    this.boxShadow,
   });
 
   @override
@@ -31,7 +33,7 @@ class SmartListTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
+        boxShadow: boxShadow ?? [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 8,
