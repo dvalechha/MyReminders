@@ -182,71 +182,81 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
               preferredSize: const Size.fromHeight(56),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: TextField(
-                  onChanged: (value) {
-                    setState(() {
-                      _searchText = value;
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Search subscriptions...',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Filter icon
-                        IconButton(
-                          icon: Stack(
-                            children: [
-                              const Icon(Icons.tune, size: 20),
-                              if (_filterCategory != null || _filterRenewingSoon)
-                                Positioned(
-                                  right: 0,
-                                  top: 0,
-                                  child: Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.blue,
-                                      shape: BoxShape.circle,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    onChanged: (value) {
+                      setState(() {
+                        _searchText = value;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search subscriptions...',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Filter icon
+                          IconButton(
+                            icon: Stack(
+                              children: [
+                                const Icon(Icons.tune, size: 20),
+                                if (_filterCategory != null || _filterRenewingSoon)
+                                  Positioned(
+                                    right: 0,
+                                    top: 0,
+                                    child: Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.blue,
+                                        shape: BoxShape.circle,
+                                      ),
                                     ),
                                   ),
+                              ],
+                            ),
+                            onPressed: () async {
+                              final result = await showDialog<Map<String, dynamic>>(
+                                context: context,
+                                builder: (context) => SubscriptionFilterDialog(
+                                  initialCategory: _filterCategory,
                                 ),
-                            ],
-                          ),
-                          onPressed: () async {
-                            final result = await showDialog<Map<String, dynamic>>(
-                              context: context,
-                              builder: (context) => SubscriptionFilterDialog(
-                                initialCategory: _filterCategory,
-                              ),
-                            );
-                            if (result != null) {
-                              setState(() {
-                                _filterCategory = result['category'] as SubscriptionCategory?;
-                                _filterRenewingSoon = result['renewingSoon'] as bool? ?? false;
-                              });
-                            }
-                          },
-                        ),
-                        // Clear icon
-                        if (_searchText.isNotEmpty)
-                          IconButton(
-                            icon: const Icon(Icons.clear, size: 20),
-                            onPressed: () {
-                              setState(() {
-                                _searchText = '';
-                              });
+                              );
+                              if (result != null) {
+                                setState(() {
+                                  _filterCategory = result['category'] as SubscriptionCategory?;
+                                  _filterRenewingSoon = result['renewingSoon'] as bool? ?? false;
+                                });
+                              }
                             },
                           ),
-                      ],
-                    ),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 12,
+                          // Clear icon
+                          if (_searchText.isNotEmpty)
+                            IconButton(
+                              icon: const Icon(Icons.clear, size: 20),
+                              onPressed: () {
+                                setState(() {
+                                  _searchText = '';
+                                });
+                              },
+                            ),
+                        ],
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
                     ),
                   ),
                 ),
@@ -386,7 +396,7 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
                       Container(
                         height: 200,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: _buildBarChart(monthlySpendData),
+                        child: _buildBarChart(monthlySpendData, provider.totalMonthlySpend),
                       ),
                       const Divider(),
                     ],
@@ -415,7 +425,7 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
               children: List.generate(
                 filteredSubscriptions.length,
                 (index) => Padding(
-                  padding: EdgeInsets.only(bottom: index < filteredSubscriptions.length - 1 ? 12 : 0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   child: _buildSubscriptionCard(context, filteredSubscriptions[index], provider),
                 ),
               ),
@@ -454,18 +464,29 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
           ),
         );
       },
-      padding: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                // Leading: Circular Avatar
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: statusColor.withOpacity(0.2),
+      padding: const EdgeInsets.all(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 15,
+          offset: const Offset(0, 5),
+        ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Leading: Rounded Rectangle Avatar (Squircle)
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
                   child: Text(
                     firstLetter,
                     style: TextStyle(
@@ -475,59 +496,59 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                // Center: Subscription Name and Renewal Text
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Row 1: Subscription Name (Bold)
-                      Text(
-                        subscription.serviceName,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
+              ),
+              const SizedBox(width: 16),
+              // Center: Subscription Name and Renewal Text
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Row 1: Subscription Name (Semi-Bold)
+                    Text(
+                      subscription.serviceName,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
                       ),
-                      // Row 2: Renewal text
-                      const SizedBox(height: 4),
-                      Text(
-                        getRenewalText(
-                          subscription.renewalDate,
-                          billingCycle: subscription.billingCycle,
-                        ),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[700],
-                          fontWeight: FontWeight.w400,
-                        ),
+                    ),
+                    // Row 2: Renewal text
+                    const SizedBox(height: 6),
+                    Text(
+                      getRenewalText(
+                        subscription.renewalDate,
+                        billingCycle: subscription.billingCycle,
                       ),
-                    ],
-                  ),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
                 ),
-                // Trailing: Price (Bold, aligned right)
-                Text(
-                  '\$${subscription.amount.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
+              ),
+              // Trailing: Price (Bold, vertically aligned with avatar center)
+              Text(
+                '\$${subscription.amount.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
                 ),
-              ],
-            ),
-            // Bottom Accessory: LinearProgressIndicator
-            const SizedBox(height: 12),
-            LinearProgressIndicator(
-              value: progress,
-              backgroundColor: Colors.grey[200],
-              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-              minHeight: 2,
-              borderRadius: BorderRadius.circular(1),
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          // Bottom Accessory: LinearProgressIndicator
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.grey.withOpacity(0.2),
+            valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+            minHeight: 3,
+            borderRadius: BorderRadius.circular(1.5),
+          ),
+        ],
       ),
     );
 
@@ -571,54 +592,15 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
     );
   }
 
-  /// Calculates a nice rounded maximum Y value for the chart
-  /// Returns increments like 10, 15, 20, 25, 50, 100, etc.
-  double _calculateNiceMaxY(double maxValue) {
-    if (maxValue <= 0) return 100.0;
+  Widget _buildBarChart(List<MonthlySpend> monthlyData, double totalMonthlySpend) {
+    // Calculate maxY based on totalMonthlySpend (not bar heights)
+    // This ensures the axis is always tall enough to show the full monthly budget
+    final maxY = totalMonthlySpend > 0 ? totalMonthlySpend * 1.2 : 100.0;
     
-    // Add 20% padding, then round to nice increments
-    final paddedValue = maxValue * 1.2;
-    
-    // Define nice increments based on value ranges
-    if (paddedValue <= 10) {
-      // For values up to 10, round to 5 or 10
-      return paddedValue <= 5 ? 5.0 : 10.0;
-    } else if (paddedValue <= 50) {
-      // For values 10-50, round to 15, 20, 25, 30, 40, 50
-      if (paddedValue <= 15) return 15.0;
-      if (paddedValue <= 20) return 20.0;
-      if (paddedValue <= 25) return 25.0;
-      if (paddedValue <= 30) return 30.0;
-      if (paddedValue <= 40) return 40.0;
-      return 50.0;
-    } else if (paddedValue <= 100) {
-      // For values 50-100, round to 60, 70, 80, 90, 100
-      if (paddedValue <= 60) return 60.0;
-      if (paddedValue <= 70) return 70.0;
-      if (paddedValue <= 80) return 80.0;
-      if (paddedValue <= 90) return 90.0;
-      return 100.0;
-    } else if (paddedValue <= 500) {
-      // For values 100-500, round to 125, 150, 200, 250, 300, 400, 500
-      if (paddedValue <= 125) return 125.0;
-      if (paddedValue <= 150) return 150.0;
-      if (paddedValue <= 200) return 200.0;
-      if (paddedValue <= 250) return 250.0;
-      if (paddedValue <= 300) return 300.0;
-      if (paddedValue <= 400) return 400.0;
-      return 500.0;
-    } else {
-      // For larger values, round to 50, 100, 500, 1000 increments
-      final magnitude = math.pow(10, (math.log(paddedValue) / math.ln10).floor()).toDouble();
-      if (paddedValue <= magnitude * 2) return magnitude * 2;
-      if (paddedValue <= magnitude * 5) return magnitude * 5;
-      return magnitude * 10;
-    }
-  }
-
-  Widget _buildBarChart(List<MonthlySpend> monthlyData) {
-    final maxValue = monthlyData.map((e) => e.total).reduce((a, b) => a > b ? a : b);
-    final maxY = _calculateNiceMaxY(maxValue);
+    // Calculate interval: divide into 5 equal steps, then round to clean number (nearest 50 or 100)
+    // This avoids decimals or weird steps like 45
+    final rawInterval = maxY / 5;
+    final interval = (rawInterval / 50).ceil() * 50.0;
 
     return BarChart(
       BarChartData(
@@ -675,17 +657,42 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 40,
+              interval: interval,
               getTitlesWidget: (value, meta) {
-                if (value == 0) {
+                // Hide labels that are too close to maxY to prevent overlap
+                // Only show labels that are multiples of the interval
+                final tolerance = interval * 0.1; // 10% tolerance for floating point comparison
+                if ((value - maxY).abs() < tolerance) {
+                  // Hide the maxY label to prevent collision with interval labels
                   return const Text('');
                 }
-                return Text(
-                  '\$${value.toInt()}',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 11,
-                  ),
-                );
+                
+                // Show 0 at the bottom
+                if (value == 0) {
+                  return Text(
+                    '\$${value.toInt()}',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 11,
+                    ),
+                  );
+                }
+                
+                // Only show labels that are multiples of the interval
+                // This ensures clean steps: 0, 300, 600, 900, 1200
+                final remainder = (value % interval).abs();
+                if (remainder < tolerance || (interval - remainder) < tolerance) {
+                  return Text(
+                    '\$${value.toInt()}',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 11,
+                    ),
+                  );
+                }
+                
+                // Hide other labels
+                return const Text('');
               },
             ),
           ),
@@ -693,7 +700,7 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          horizontalInterval: maxY / 4,
+          horizontalInterval: interval,
           getDrawingHorizontalLine: (value) {
             return FlLine(
               color: Colors.grey[200]!,
@@ -711,11 +718,15 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
         barGroups: monthlyData.asMap().entries.map((entry) {
           final index = entry.key;
           final data = entry.value;
+          final isCurrentMonth = index == monthlyData.length - 1; // Last item is current month
+          
           return BarChartGroupData(
             x: index,
             barRods: [
               BarChartRodData(
-                toY: data.total,
+                // Current month bar uses totalMonthlySpend to sync with the header summary
+                // Historical months use data.total (sum of subscriptions renewing in that month)
+                toY: isCurrentMonth ? totalMonthlySpend : data.total,
                 color: Colors.blue,
                 width: 20,
                 borderRadius: const BorderRadius.vertical(
