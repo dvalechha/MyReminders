@@ -22,16 +22,34 @@ class AppointmentProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
 
   AppointmentProvider() {
-    loadAppointments();
+    // Defer initialization to avoid blocking app startup
+    // Data will be loaded when the AppointmentsListView is actually shown
     _initializeNotifications();
   }
 
   Future<void> _initializeNotifications() async {
-    await _notificationService.initialize();
-    await _notificationService.checkAuthorizationStatus();
+    // Initialize notifications in background (non-blocking)
+    Future.microtask(() async {
+      try {
+        await _notificationService.initialize();
+        await _notificationService.checkAuthorizationStatus();
+      } catch (e) {
+        debugPrint('Warning: Failed to initialize notifications: $e');
+      }
+    });
   }
 
-  Future<void> loadAppointments() async {
+  Future<void> loadAppointments({bool forceRefresh = false}) async {
+    // Don't reload if already loading to prevent duplicate requests
+    if (_isLoading && !forceRefresh) {
+      return;
+    }
+    
+    // Don't load if already loaded and not forcing refresh
+    if (_appointments.isNotEmpty && !forceRefresh) {
+      return;
+    }
+
     _isLoading = true;
     notifyListeners();
 
@@ -39,10 +57,24 @@ class AppointmentProvider with ChangeNotifier {
       // Clear existing appointments before loading new data to prevent stale data
       _appointments.clear();
 
-      // Always attempt to fetch latest from Supabase when available
+      // Check authentication before attempting to load
       final user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
+      if (user == null) {
+        // Not authenticated - try loading from local database only
         try {
+          final localAppointments = await _dbHelper.getAllAppointments();
+          _appointments = localAppointments;
+        } catch (e) {
+          debugPrint('Warning: Failed to load appointments from local database: $e');
+          _appointments = [];
+        }
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      // Fetch latest from Supabase (user is already checked above)
+      try {
           // PERFORMANCE OPTIMIZATION: Fetch all categories once instead of N queries
           final allCategories = await _categoryRepository.getAll();
           final categoryMap = <String, models.Category>{};
@@ -81,10 +113,7 @@ class AppointmentProvider with ChangeNotifier {
           debugPrint('Warning: Failed to fetch appointments from Supabase, falling back to local: $e');
           _appointments = await _dbHelper.getAllAppointments();
         }
-      } else {
-        // Fallback to local when user not authenticated
-        _appointments = await _dbHelper.getAllAppointments();
-      }
+      
       await _rescheduleAllReminders();
     } catch (e) {
       print('Error loading appointments: $e');

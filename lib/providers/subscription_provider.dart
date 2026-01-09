@@ -27,17 +27,35 @@ class SubscriptionProvider with ChangeNotifier {
   }
 
   SubscriptionProvider() {
-    loadSubscriptions();
+    // Defer initialization to avoid blocking app startup
+    // Data will be loaded when the SubscriptionsListView is actually shown
     _initializeNotifications();
   }
 
   Future<void> _initializeNotifications() async {
-    await _notificationService.initialize();
-    await _notificationService.checkAuthorizationStatus();
+    // Initialize notifications in background (non-blocking)
+    Future.microtask(() async {
+      try {
+        await _notificationService.initialize();
+        await _notificationService.checkAuthorizationStatus();
+      } catch (e) {
+        debugPrint('Warning: Failed to initialize notifications: $e');
+      }
+    });
   }
 
   // Load all subscriptions from database
-  Future<void> loadSubscriptions() async {
+  Future<void> loadSubscriptions({bool forceRefresh = false}) async {
+    // Don't reload if already loading to prevent duplicate requests
+    if (_isLoading && !forceRefresh) {
+      return;
+    }
+    
+    // Don't load if already loaded and not forcing refresh
+    if (_subscriptions.isNotEmpty && !forceRefresh) {
+      return;
+    }
+
     _isLoading = true;
     notifyListeners();
 
@@ -45,10 +63,24 @@ class SubscriptionProvider with ChangeNotifier {
       // Clear existing subscriptions before loading new data to prevent stale data
       _subscriptions.clear();
 
-      // Always attempt to fetch latest from Supabase when available
+      // Check authentication before attempting to load
       final user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
+      if (user == null) {
+        // Not authenticated - try loading from local database only
         try {
+          final localSubscriptions = await _dbHelper.getAllSubscriptions();
+          _subscriptions = localSubscriptions;
+        } catch (e) {
+          debugPrint('Warning: Failed to load subscriptions from local database: $e');
+          _subscriptions = [];
+        }
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      // Fetch latest from Supabase (user is already checked above)
+      try {
           // PERFORMANCE OPTIMIZATION: Fetch all categories once instead of N queries
           final allCategories = await _categoryRepository.getAll();
           final categoryMap = <String, models.Category>{};
@@ -89,10 +121,7 @@ class SubscriptionProvider with ChangeNotifier {
           debugPrint('Warning: Failed to fetch subscriptions from Supabase, falling back to local: $e');
           _subscriptions = await _dbHelper.getAllSubscriptions();
         }
-      } else {
-        // Fallback to local when user not authenticated
-        _subscriptions = await _dbHelper.getAllSubscriptions();
-      }
+      
       // Reschedule all reminders on app start
       await _notificationService.rescheduleAllReminders(_subscriptions);
     } catch (e) {

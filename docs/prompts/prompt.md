@@ -1,52 +1,92 @@
-**Title:** Implement Structured Help & Feedback View for Custos
+# Cursor AI Prompt: Unified "Smart Card" List UI Refactor (Cross-Platform)
 
 **Context:**
-The current "Help & Feedback" implementation in `lib/views/settings_view.dart` is a placeholder that simply displays `HelpSuggestionView`. We need a comprehensive, professional, and user-friendly `HelpFeedbackView` that educates users on how to use our natural-language assistant and provides clear support channels.
+I need to modernize the UI for three core list screens in my Flutter app: **Tasks**, **Appointments**, and **Subscriptions**. Currently, they are simple text lists. I want to move to a unified **"Soft Card" design system** that works consistently on both iOS and Android.
 
-**Goal:**
-Create a new view `lib/views/help_feedback_view.dart` and integrate it into the `SettingsView`. This view should be structured into logical sections to improve user onboarding and support.
+**Global Design Style:**
+* **Background:** Light Grey (e.g., `Colors.grey[100]` or `CupertinoColors.systemGroupedBackground` for iOS) for the screen background.
+* **Card Style:** Pure White (`Colors.white`) containers, `BorderRadius.circular(16)`, and a subtle shadow (low opacity, diffuse).
+* **Typography:** Use a modern, rounded sans-serif font (e.g., Google Fonts `Poppins` or `Lato`) if available, otherwise standard Platform font. Titles should be **Bold**.
 
-**Requirements:**
+---
 
-1.  **Section 1: "How to Talk to Custos" (Command Guide):**
-    *   Present a "Cheat Sheet" of command patterns the app understands.
-    *   Examples: 
-        *   Tasks: "Remind me to [Task] on [Date]"
-        *   Appointments: "[Event] with [Person] at [Time] at [Location]"
-        *   Subscriptions: "New subscription for [Service] $[Amount]/month"
-    *   Use a clean, readable layout (e.g., small cards or a bulleted list with icons).
+## 1. The Reusable "SmartCard" Component
+Create a reusable Flutter widget (e.g., `SmartListTile`) that accepts a `child` (content) and a `Color` (status indicator).
 
-2.  **Section 2: Interactive Examples:**
-    *   Group the existing clickable examples from `HelpSuggestionView` into categories (e.g., Tasks, Appointments, Subscriptions).
-    *   Ensure clicking an example still triggers the `onExampleTap` callback to navigate back and potentially populate the Omnibox.
+**Visual Specs:**
+* **Container:** White background, rounded corners (16dp).
+* **Status Strip:** A vertical color strip on the absolute left edge of the card. Width: `6dp`.
+    * *Border Radius:* Top-left and bottom-left corners should match the card's radius (16dp) so it fits widely.
+* **Padding:** Internal padding of `16dp` for the content.
+* **Elevation:** `2` or `4` (Subtle).
 
-3.  **Section 3: Support & Feedback:**
-    *   **Report a Bug:** A ListTile that opens an email client via `url_launcher`. The subject should automatically include the app version and OS (use `PackageInfo` and `Platform`).
-    *   **Suggest a Feature:** A similar channel for user suggestions.
+---
 
-4.  **Section 4: FAQ (Frequently Asked Questions):**
-    *   Add a few expandable tiles (ExpansionTile) or a simple list covering:
-        *   "Where is my data stored?" (Explain Supabase/Local encryption).
-        *   "Can I use Custos offline?" (Explain local cache).
-        *   "How do I sync with external calendars?" (Mention this as a Pro feature).
+## 2. Screen-Specific Implementations
 
-5.  **Section 5: Community & Growth:**
-    *   **Rate Custos:** A button to open the App Store/Play Store page.
-    *   **Share App:** A way to share a link to the app with others.
+### A. Task List Screen
+* **Data:** Title, Due Date, Priority (High, Medium, Low).
+* **Layout inside Card:**
+    * **Leading:** A circular Checkbox (Use `MSHCheckbox` or standard Flutter `Checkbox` shaped as circle).
+    * **Center:**
+        * Row 1: Task Title (Bold, size 16).
+        * Row 2: Due Date (Grey, size 12). If date is Today/Overdue, text color should be Red/Orange.
+    * **Trailing:** (Optional) Chevron right `Icons.adaptive.arrow_forward`.
+* **Logic (Color Coding):**
+    * **High Priority / Overdue:** Red Status Strip (`Colors.redAccent`).
+    * **Medium Priority:** Orange/Yellow Status Strip (`Colors.orangeAccent`).
+    * **Low Priority:** Blue/Green Status Strip (`Colors.blueAccent` or Transparent).
 
-**Technical Instructions:**
+### B. Appointments Screen (Timeline Look)
+* **Data:** Title, Date/Time, Location.
+* **Layout inside Card:**
+    * **Leading:** Instead of a checkbox, use a vertical column showing the **Time** (e.g., "3:00 \n PM") in bold.
+    * **Center:**
+        * Row 1: Appointment Title (e.g., "Dentist").
+        * Row 2: Row with `Icons.location_on` (size 12, grey) + Location Text.
+* **Logic (Color Coding):**
+    * **Happening Today:** Orange Status Strip.
+    * **Future:** Blue Status Strip.
 
-1.  **Create `lib/views/help_feedback_view.dart`:**
-    *   Implement as a `StatelessWidget` or `StatefulWidget` as needed.
-    *   Use a `ListView` for smooth scrolling through sections.
-    *   Match the existing app styling (Material 3, consistent padding, and color scheme).
-2.  **Update `lib/views/settings_view.dart`:**
-    *   Replace the inline `Scaffold` and `HelpSuggestionView` in the "Help & Feedback" `onTap` handler with a navigation to the new `HelpFeedbackView`.
-3.  **Dependencies:**
-    *   Use `url_launcher` for email and store links.
-    *   Use `package_info_plus` for versioning information.
-4.  **Exclusions:**
-    *   Do **NOT** include legal, version, or license information in this view, as they are already handled in the "About" section.
+### C. Subscriptions Screen
+* **Data:** Name (e.g., Netflix), Cost, Renewal Date, Logo (Asset or Url).
+* **Layout inside Card:**
+    * **Leading:** A circular Avatar (Radius 24). If no image logo, use a colored CircleAvatar with the first letter of the App Name.
+    * **Center:** Subscription Name (Bold) + "Renews in [x] days" (subtitle).
+    * **Trailing:** Price (e.g., "$20.00") in **Bold**, aligned right.
+    * **Bottom Accessory:** A thin `LinearProgressIndicator` at the very bottom of the card content (inside padding) showing how far through the billing cycle we are.
+* **Logic (Color Coding):**
+    * **Renews within 3 days:** Red Status Strip (Alert).
+    * **Safe:** Green/Blue Status Strip.
 
-**Desired Outcome:**
-A polished, multi-section Help & Feedback screen that serves as a central hub for user education and support, integrated seamlessly into the existing settings navigation flow.
+---
+
+## 3. Platform Specifics (Crucial)
+* **Adaptivity:** Ensure the list scrolls naturally on both platforms (`BouncingScrollPhysics` for iOS, `ClampingScrollPhysics` for Android).
+* **Icons:** Use `Icons.adaptive.share` (etc) where possible to show the correct icon for Cupertino vs Material.
+* **Feedback:** When tapping a card:
+    * **Android:** Use `InkWell` (Ripple effect).
+    * **iOS:** Use a `GestureDetector` that lowers opacity slightly on tap (no ripple).
+
+---
+
+## 4. The Logic Strategy (Include in comments)
+Please implement the following helper function for color determination to ensure psychological consistence:
+
+```dart
+// Traffic Light Mental Model Strategy:
+// Red: "Stop/Critical" - Used for High Priority or Overdue items to grab immediate attention.
+// Orange: "Caution/Active" - Used for Medium Priority or tasks due Today.
+// Blue/Green: "Safe/Flow" - Used for Future items or Low priority.
+
+Color getStatusColor({required Priority priority, required DateTime dueDate}) {
+  if (priority == Priority.high || dueDate.isBefore(DateTime.now())) {
+    return Colors.redAccent; // Urgent
+  } else if (priority == Priority.medium || isSameDay(dueDate, DateTime.now())) {
+    return Colors.orangeAccent; // Attention needed
+  } else {
+    return Colors.blueAccent; // Normal flow
+  }
+}
+
+Instruction: Please generate the Flutter code for the SmartListTile widget and show an example usage for the Task List ListView.builder incorporating the Search Bar with the new Filter Icon (Icons.tune) on the right side of the search field.

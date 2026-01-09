@@ -1,16 +1,19 @@
 -- ============================================
--- Test Data: Subscription Records (Orange & Green Status Only)
+-- Cleanup and Insert Subscription Test Data
 -- ============================================
--- This script inserts test subscription records for UI testing
--- Orange Status: Renewals in 0-7 days (renews soon)
--- Green Status: Renewals >7 days (renews later)
--- All records use the same user_id and category_id as specified
+-- This script:
+-- 1. Deletes all existing subscriptions for the test user
+-- 2. Inserts fresh test data with Orange and Green status subscriptions
 -- ============================================
 
 -- Hard-coded values
 -- user_id: b067789d-3164-485c-8f09-8f1ba92c8d2c
--- category_id: 2fdbd1b8-a492-44dd-97aa-23e995f41de8
 
+-- Step 1: Cleanup - Delete existing subscriptions for this user
+DELETE FROM subscriptions 
+WHERE user_id = 'b067789d-3164-485c-8f09-8f1ba92c8d2c';
+
+-- Step 2: Insert new test data (Orange & Green status only)
 -- Orange Status Subscriptions (Renewals in 0-7 days)
 INSERT INTO subscriptions (user_id, category_id, title, amount, currency, renewal_date, billing_cycle, reminder_days_before, payment_last4, notes, created_at, updated_at) VALUES
 ('b067789d-3164-485c-8f09-8f1ba92c8d2c', '2fdbd1b8-a492-44dd-97aa-23e995f41de8', 'Netflix', 15.99, 'USD', CURRENT_DATE, 'monthly', 3, '4242', 'Standard plan - Renews today', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
@@ -68,11 +71,9 @@ INSERT INTO subscriptions (user_id, category_id, title, amount, currency, renewa
 ('b067789d-3164-485c-8f09-8f1ba92c8d2c', '2fdbd1b8-a492-44dd-97aa-23e995f41de8', 'Patreon Creator', 10.00, 'USD', CURRENT_DATE + INTERVAL '280 days', 'monthly', 1, '7777', NULL, NOW() - INTERVAL '50 days', NOW() - INTERVAL '50 days');
 
 -- ============================================
--- Summary: 50 subscription records inserted
--- Orange Status (0-7 days): 8 subscriptions (Netflix through Notion Pro)
--- Green Status (>7 days): 42 subscriptions (Adobe Creative Cloud through Patreon Creator)
--- All records use:
---   user_id: b067789d-3164-485c-8f09-8f1ba92c8d2c
---   category_id: 2fdbd1b8-a492-44dd-97aa-23e995f41de8
--- Note: All renewal dates use CURRENT_DATE + INTERVAL for relative dates
+-- Summary:
+-- ✅ Deleted all existing subscriptions for user_id: b067789d-3164-485c-8f09-8f1ba92c8d2c
+-- ✅ Inserted 50 new subscription records:
+--    - Orange Status (0-7 days): 8 subscriptions
+--    - Green Status (>7 days): 42 subscriptions
 -- ============================================
