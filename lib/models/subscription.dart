@@ -26,8 +26,7 @@ enum BillingCycle {
   weekly('Weekly'),
   monthly('Monthly'),
   quarterly('Quarterly'),
-  yearly('Yearly'),
-  custom('Custom');
+  yearly('Yearly');
 
   const BillingCycle(this.value);
   final String value;

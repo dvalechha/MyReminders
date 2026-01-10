@@ -17,9 +17,12 @@ class MainNavigationView extends StatefulWidget {
   State<MainNavigationView> createState() => _MainNavigationViewState();
 }
 
-class _MainNavigationViewState extends State<MainNavigationView> {
+class _MainNavigationViewState extends State<MainNavigationView> with AutomaticKeepAliveClientMixin {
   int _selectedIndex = 0;
   bool _showBottomBar = true;
+  
+  @override
+  bool get wantKeepAlive => true;
 
   void _onItemTapped(int index) {
     // If tapping the same tab, pop to root
@@ -56,16 +59,19 @@ class _MainNavigationViewState extends State<MainNavigationView> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
         children: [
           _NestedNavigator(
+            key: ValueKey('home_navigator'),
             navigatorKey: MainNavigationKeys.homeNavigatorKey,
             onRouteChanged: updateBottomBarVisibility,
             child: const WelcomeView(),
           ),
           _NestedNavigator(
+            key: ValueKey('settings_navigator'),
             navigatorKey: MainNavigationKeys.settingsNavigatorKey,
             onRouteChanged: updateBottomBarVisibility,
             child: const SettingsView(),
@@ -110,6 +116,7 @@ class _NestedNavigator extends StatefulWidget {
   final void Function(bool show) onRouteChanged;
 
   const _NestedNavigator({
+    super.key,
     required this.navigatorKey,
     required this.child,
     required this.onRouteChanged,

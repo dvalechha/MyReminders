@@ -19,6 +19,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool _isCheckingPasswordReset = false;
   bool _shouldShowPasswordReset = false;
   bool _hasCheckedPasswordReset = false; // Track if we've already checked to prevent infinite loop
+  Widget? _mainNavigationView; // Cache MainNavigationView to preserve navigation state
   
   @override
   void initState() {
@@ -170,6 +171,10 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
+        // Clear cached MainNavigationView if user logs out
+        if (!authProvider.isAuthenticated) {
+          _mainNavigationView = null;
+        }
         // Show loading while checking auth state or password reset
         if (authProvider.isLoading || _isCheckingPasswordReset || authProvider.isCheckingPasswordReset) {
           return const Scaffold(
@@ -268,7 +273,9 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
 
         // User is authenticated and verified
         _loadProfileIfAuthenticated();
-        return const MainNavigationView();
+        // Cache MainNavigationView to preserve navigation state across rebuilds
+        _mainNavigationView ??= const MainNavigationView();
+        return _mainNavigationView!;
       },
     );
   }

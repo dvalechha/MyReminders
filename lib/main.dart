@@ -109,6 +109,28 @@ class MyReminderApp extends StatelessWidget {
                   borderSide: BorderSide(color: Colors.red),
                 ),
               ),
+              datePickerTheme: DatePickerThemeData(
+                backgroundColor: Colors.white,
+                headerBackgroundColor: Colors.white,
+                headerForegroundColor: Colors.black,
+                todayBackgroundColor: WidgetStateProperty.all(Colors.transparent),
+                todayForegroundColor: WidgetStateProperty.all(const Color(0xFF2D62ED)),
+                dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return const Color(0xFF2D62ED);
+                  }
+                  return null;
+                }),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+              popupMenuTheme: PopupMenuThemeData(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                color: Colors.white,
+              ),
             ),
             navigatorKey: navigationModel.navigatorKey,
             home: const AuthGate(),
