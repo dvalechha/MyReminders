@@ -18,8 +18,8 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool _isCheckingPasswordReset = false;
   bool _shouldShowPasswordReset = false;
-  bool _hasCheckedPasswordReset = false; // Track if we've already checked to prevent infinite loop
-  Widget? _mainNavigationView; // Cache MainNavigationView to preserve navigation state
+  bool _hasNavigatedToMain = false; // Flag to ensure MainNavigationView is pushed only once.
+  // Removed _mainNavigationView caching to prevent navigation stack resets.
   
   @override
   void initState() {
@@ -37,7 +37,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     
     setState(() {
       _isCheckingPasswordReset = true;
-      _hasCheckedPasswordReset = true; // Mark as checked
+    // Removed _hasCheckedPasswordReset as it's no longer needed.
     });
     
     try {
@@ -45,7 +45,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         // Small delay to allow Supabase to process the deep link
         // Reduced delay to improve startup performance
-        await Future.delayed(const Duration(milliseconds: 300));
+        await Future.delayed(const Duration(milliseconds: 100));
         
         // Check if password reset was initiated
         final shouldShow = await authProvider.checkPasswordResetFlow();
@@ -88,7 +88,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     // When app resumes, refresh the session to catch OAuth callbacks
     // Add a small delay to allow Supabase to process the deep link
     if (state == AppLifecycleState.resumed) {
-      Future.delayed(const Duration(milliseconds: 500), () async {
+      Future.delayed(const Duration(milliseconds: 100), () async {
         if (mounted) {
           final authProvider = Provider.of<AuthProvider>(context, listen: false);
           
@@ -144,7 +144,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       if (mounted) {
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         // Small delay to ensure SharedPreferences is accessible
-        await Future.delayed(const Duration(milliseconds: 300));
+        await Future.delayed(const Duration(milliseconds: 100));
         final shouldShow = await authProvider.checkPasswordResetFlow();
         if (mounted) {
           setState(() {
@@ -173,7 +173,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       builder: (context, authProvider, child) {
         // Clear cached MainNavigationView if user logs out
         if (!authProvider.isAuthenticated) {
-          _mainNavigationView = null;
+          _hasNavigatedToMain = false; // Reset the navigation flag on logout
         }
         // Show loading while checking auth state or password reset
         if (authProvider.isLoading || _isCheckingPasswordReset || authProvider.isCheckingPasswordReset) {
@@ -273,9 +273,31 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
 
         // User is authenticated and verified
         _loadProfileIfAuthenticated();
-        // Cache MainNavigationView to preserve navigation state across rebuilds
-        _mainNavigationView ??= const MainNavigationView();
-        return _mainNavigationView!;
+
+        // If not already navigated, push MainNavigationView
+        if (!_hasNavigatedToMain) {
+          // Mark as navigated to prevent multiple pushes
+          _hasNavigatedToMain = true;
+          // Use a PostFrameCallback to navigate after the current build cycle
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && authProvider.isAuthenticated && authProvider.isEmailVerified) {
+              final navigationModel = Provider.of<NavigationModel>(context, listen: false);
+              navigationModel.navigatorKey.currentState?.pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (context) => const MainNavigationView(),
+                  settings: const RouteSettings(name: 'MainNavigationView'), // Add a name for better debugging
+                ),
+                (route) => false, // Remove all previous routes
+              );
+            }
+          });
+        }
+        // Return a loading indicator while navigation occurs or if already navigated
+        return const Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
       },
     );
   }

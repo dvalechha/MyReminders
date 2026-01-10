@@ -509,6 +509,7 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
 
+      // Check if the timestamp is too old (e.g., > 1 hour)
       if (timestamp != null) {
         final resetTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
         final now = DateTime.now();
@@ -530,24 +531,29 @@ class AuthProvider extends ChangeNotifier {
 
       debugPrint('Current session exists: ${session != null}');
 
+      // If a session exists, and it matches the reset email (or if no email was stored, just that a session exists),
+      // then it's a valid password reset flow.
       if (session != null) {
         final userEmail = session.user.email;
-        debugPrint('Session user email: $userEmail, reset email: $resetEmail');
-
-        if (resetEmail != null && userEmail != null && userEmail == resetEmail) {
-          debugPrint('Password reset flow confirmed - email matches');
-          return true;
-        } else if (resetEmail == null || userEmail == null) {
-          debugPrint('Password reset flow confirmed - flag set and session exists');
+        if (resetEmail == null || userEmail == null || userEmail == resetEmail) {
+          debugPrint('Password reset flow confirmed - session valid and email matches (or no email to match)');
           return true;
         } else {
-          debugPrint('Email mismatch - treating as normal login, not password reset');
+          debugPrint('Email mismatch between session user and reset email - treating as normal login.');
+          // Clear flags if email doesn't match to avoid issues on next login
+          await prefs.remove('password_reset_initiated');
+          await prefs.remove('password_reset_email');
+          await prefs.remove('password_reset_timestamp');
           return false;
         }
       }
 
-      debugPrint('Password reset flow check returning false');
+      // If no session, but flag is set and not expired, it might be a flow that requires login first.
+      // However, for simplicity and to avoid complexities, we return false if no session is active.
+      // The user will need to click the link again or log in normally.
+      debugPrint('No active session found for password reset flow, returning false.');
       return false;
+
     } catch (e) {
       debugPrint('Error checking password reset flow: $e');
       return false;
