@@ -25,6 +25,7 @@ class _UnifiedAgendaViewState extends State<UnifiedAgendaView> {
     final items = _buildAgendaItems(subscriptions, appointments, tasks);
 
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text('Upcoming Agenda'),
         elevation: 0,
@@ -32,20 +33,126 @@ class _UnifiedAgendaViewState extends State<UnifiedAgendaView> {
       ),
       body: items.isEmpty
           ? const Center(child: Text('No upcoming items'))
-          : ListView.separated(
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final item = items[index];
-                return ListTile(
-                  leading: Icon(item.icon, color: item.color),
-                  title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(item.subtitle),
-                  trailing: Text(item.timeLabel, style: const TextStyle(fontSize: 12)),
-                );
-              },
+          : Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: ListView.builder(
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return _buildAgendaCard(item);
+                },
+              ),
             ),
     );
+  }
+
+  Widget _buildAgendaCard(_AgendaItem item) {
+    // Get service initials for CircleAvatar
+    final initials = _getInitials(item.title);
+    
+    // Format date without time
+    final formattedDate = DateFormat('MMM d').format(item.date);
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Leading: CircleAvatar
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: item.color.withOpacity(0.1),
+            child: Text(
+              initials,
+              style: TextStyle(
+                color: item.color,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Middle: Title and Subtitle
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title
+                Text(
+                  item.title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Subtitle
+                Text(
+                  item.subtitle,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Trailing: Price (for subscriptions) and Date
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Price (only for subscriptions)
+              if (item.type == 'subscription' && item.amount != null)
+                Text(
+                  '\$${item.amount!.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                )
+              else
+                const SizedBox.shrink(),
+              const SizedBox(height: 4),
+              // Date
+              Text(
+                formattedDate,
+                style: TextStyle(
+                  color: item.color,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getInitials(String title) {
+    if (title.isEmpty) return '?';
+    final words = title.trim().split(' ');
+    if (words.length >= 2) {
+      // Take first letter of first two words
+      return '${words[0][0]}${words[1][0]}'.toUpperCase();
+    } else {
+      // Take first letter, or first two if single word
+      final word = words[0];
+      if (word.length >= 2) {
+        return word.substring(0, 2).toUpperCase();
+      }
+      return word[0].toUpperCase();
+    }
   }
 
   List<_AgendaItem> _buildAgendaItems(
@@ -61,9 +168,10 @@ class _UnifiedAgendaViewState extends State<UnifiedAgendaView> {
           type: 'subscription',
           title: sub.serviceName,
           date: sub.renewalDate,
-          subtitle: 'Renews • ${sub.currency.value} ${sub.amount.toStringAsFixed(2)}',
+          subtitle: sub.billingCycle.value, // Show billing cycle (e.g., "Monthly")
           icon: Icons.autorenew,
           color: Colors.deepOrange,
+          amount: sub.amount,
         ),
       );
     }
@@ -107,6 +215,7 @@ class _AgendaItem {
   final String subtitle;
   final IconData icon;
   final Color color;
+  final double? amount; // For subscriptions
 
   _AgendaItem({
     required this.type,
@@ -115,11 +224,6 @@ class _AgendaItem {
     required this.subtitle,
     required this.icon,
     required this.color,
+    this.amount,
   });
-
-  String get timeLabel {
-    final dateLabel = DateFormat('EEE, MMM d').format(date);
-    final timeLabel = DateFormat('h:mm a').format(date);
-    return '$dateLabel • $timeLabel';
-  }
 }

@@ -597,10 +597,20 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
     // This ensures the axis is always tall enough to show the full monthly budget
     final maxY = totalMonthlySpend > 0 ? totalMonthlySpend * 1.2 : 100.0;
     
-    // Calculate interval: divide into 5 equal steps, then round to clean number (nearest 50 or 100)
-    // This avoids decimals or weird steps like 45
-    final rawInterval = maxY / 5;
-    final interval = (rawInterval / 50).ceil() * 50.0;
+    // Calculate interval: adaptive based on maxY to handle small and large values
+    // For small amounts (< 50), use interval of 10
+    // For medium amounts (< 100), use interval of 20
+    // For large amounts (>= 100), use existing rounding logic
+    final double interval;
+    if (maxY < 50) {
+      interval = 10.0;
+    } else if (maxY < 100) {
+      interval = 20.0;
+    } else {
+      // For maxY >= 100: divide into 5 equal steps, then round to clean number (nearest 50)
+      final rawInterval = maxY / 5;
+      interval = (rawInterval / 50).ceil() * 50.0;
+    }
 
     return BarChart(
       BarChartData(

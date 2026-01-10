@@ -225,7 +225,7 @@ class SubscriptionProvider with ChangeNotifier {
         );
       }
 
-      await loadSubscriptions();
+      await loadSubscriptions(forceRefresh: true);
       return updatedSubscription.id;
     } catch (e) {
       debugPrint('Error adding subscription: $e');
@@ -318,7 +318,7 @@ class SubscriptionProvider with ChangeNotifier {
         await _notificationService.cancelReminder(updatedSubscription.notificationId!);
       }
 
-      await loadSubscriptions();
+      await loadSubscriptions(forceRefresh: true);
     } catch (e) {
       print('Error updating subscription: $e');
       rethrow;
@@ -360,7 +360,7 @@ class SubscriptionProvider with ChangeNotifier {
         await _dbHelper.deleteSubscription(id);
       }
 
-      await loadSubscriptions();
+      await loadSubscriptions(forceRefresh: true);
       print('🗑️ Deleted subscription: ${subscription?.serviceName ?? "Unknown"} - Notification cancelled');
     } catch (e) {
       print('❌ Error deleting subscription: $e');
