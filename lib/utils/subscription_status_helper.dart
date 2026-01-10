@@ -11,42 +11,51 @@ import '../models/subscription.dart';
 
 /// Advance renewal date if it's in the past (assuming charge succeeded)
 /// Returns the next renewal date based on billing cycle
+/// OPTIMIZED: Calculates cycles needed instead of iterating in a loop
 DateTime _advanceRenewalDateIfPast(DateTime renewalDate, BillingCycle billingCycle) {
   final now = DateTime.now();
   
-  // If renewal date is today or in the past, advance it
-  if (renewalDate.isBefore(now) || 
-      (renewalDate.year == now.year && 
-       renewalDate.month == now.month && 
-       renewalDate.day == now.day)) {
-    
-    // Calculate days to add based on billing cycle
-    int daysToAdd;
+  // Check if renewal date is today or in the past
+  final isToday = renewalDate.year == now.year && 
+                  renewalDate.month == now.month && 
+                  renewalDate.day == now.day;
+  
+  if (renewalDate.isBefore(now) || isToday) {
+    // Calculate days per cycle based on billing cycle
+    int daysPerCycle;
     switch (billingCycle) {
       case BillingCycle.weekly:
-        daysToAdd = 7;
+        daysPerCycle = 7;
         break;
       case BillingCycle.monthly:
-        daysToAdd = 30;
+        daysPerCycle = 30;
         break;
       case BillingCycle.quarterly:
-        daysToAdd = 90;
+        daysPerCycle = 90;
         break;
       case BillingCycle.yearly:
-        daysToAdd = 365;
-        break;
-      case BillingCycle.custom:
-        daysToAdd = 30; // Default fallback
+        daysPerCycle = 365;
         break;
     }
     
-    // Keep advancing until we're in the future
-    var nextRenewal = renewalDate;
-    while (nextRenewal.isBefore(now) || 
-           (nextRenewal.year == now.year && 
-            nextRenewal.month == now.month && 
-            nextRenewal.day == now.day)) {
-      nextRenewal = nextRenewal.add(Duration(days: daysToAdd));
+    // Calculate how many days have passed since renewal date
+    final daysDiff = now.difference(renewalDate).inDays;
+    
+    // Calculate how many full cycles have passed since the renewal date
+    final cyclesPassed = (daysDiff / daysPerCycle).floor();
+    
+    // Always advance by at least one cycle to ensure we're in the future
+    final cyclesToAdvance = cyclesPassed + 1;
+    
+    // Calculate the next renewal date directly (no loop needed)
+    final nextRenewal = renewalDate.add(Duration(days: cyclesToAdvance * daysPerCycle));
+    
+    // Double-check: if still in the past (edge case), add one more cycle
+    if (nextRenewal.isBefore(now) || 
+        (nextRenewal.year == now.year && 
+         nextRenewal.month == now.month && 
+         nextRenewal.day == now.day)) {
+      return nextRenewal.add(Duration(days: daysPerCycle));
     }
     
     return nextRenewal;
@@ -99,9 +108,6 @@ double getBillingCycleProgress({
       break;
     case BillingCycle.yearly:
       cycleDays = 365;
-      break;
-    case BillingCycle.custom:
-      cycleDays = 30; // Default fallback
       break;
   }
   

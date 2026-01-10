@@ -159,14 +159,21 @@ class NotificationService {
       defaultReminderMinute,
     );
 
+    // Convert to TZDateTime for proper timezone-aware comparison
+    final tzScheduledDate = tz.TZDateTime.from(scheduledDate, tz.local);
+    final tzNow = tz.TZDateTime.now(tz.local);
+    
     // If trigger is in the past, schedule for next billing cycle
-    final actualTriggerDate = scheduledDate.isBefore(DateTime.now())
-        ? _calculateNextRenewalDate(
-            renewalDate,
-            subscription.billingCycle,
-            reminderDaysBefore,
-          )
-        : scheduledDate;
+    DateTime actualTriggerDate;
+    if (tzScheduledDate.isBefore(tzNow) || tzScheduledDate.isAtSameMomentAs(tzNow)) {
+      actualTriggerDate = _calculateNextRenewalDate(
+        renewalDate,
+        subscription.billingCycle,
+        reminderDaysBefore,
+      );
+    } else {
+      actualTriggerDate = scheduledDate;
+    }
 
     // Create notification content with Android-specific enhancements
     final androidDetails = AndroidNotificationDetails(
@@ -196,18 +203,30 @@ class NotificationService {
     // Format renewal date for notification body
     final formattedDate = _formatRenewalDate(renewalDate);
 
-      try {
+    // Convert actual trigger date to TZDateTime for final validation and scheduling
+    final tzActualTriggerDate = tz.TZDateTime.from(actualTriggerDate, tz.local);
+    final tzNowForValidation = tz.TZDateTime.now(tz.local);
+
+    // Final check: ensure scheduled date is in the future
+    if (tzActualTriggerDate.isBefore(tzNowForValidation) || tzActualTriggerDate.isAtSameMomentAs(tzNowForValidation)) {
+      debugPrint('⚠️ [NotificationService] Calculated reminder date ($tzActualTriggerDate) is in the past or present, skipping notification');
+      debugPrint('⚠️ [NotificationService] Current time: $tzNowForValidation');
+      debugPrint('⚠️ [NotificationService] Renewal date: $renewalDate, Reminder days: $reminderDaysBefore');
+      return; // Skip scheduling if date is not in the future
+    }
+
+    try {
       // Schedule notification (use hash code of notificationId)
       await _notifications.zonedSchedule(
         notificationId.hashCode.abs(),
         'Upcoming Renewal',
         'Your ${subscription.serviceName} subscription renews on $formattedDate.',
-        tz.TZDateTime.from(actualTriggerDate, tz.local),
+        tzActualTriggerDate,
         notificationDetails,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       );
 
-      debugPrint('✅ [NotificationService] Notification scheduled for $actualTriggerDate (notificationId: $notificationId)');
+      debugPrint('✅ [NotificationService] Notification scheduled for $tzActualTriggerDate (notificationId: $notificationId)');
     } catch (e) {
       debugPrint('❌ [NotificationService] Error scheduling notification: $e');
       rethrow;
@@ -272,13 +291,32 @@ class NotificationService {
     final triggerDate = nextRenewal.subtract(Duration(days: reminderDaysBefore));
 
     // Set time to 7:00 PM
-    return DateTime(
+    final scheduledTrigger = DateTime(
       triggerDate.year,
       triggerDate.month,
       triggerDate.day,
       defaultReminderHour,
       defaultReminderMinute,
     );
+    
+    // Final validation: ensure the trigger date is still in the future
+    final tzTrigger = tz.TZDateTime.from(scheduledTrigger, tz.local);
+    final tzNow = tz.TZDateTime.now(tz.local);
+    
+    if (tzTrigger.isBefore(tzNow) || tzTrigger.isAtSameMomentAs(tzNow)) {
+      // If still in the past, advance by one more cycle
+      final advancedRenewal = nextRenewal.add(Duration(days: daysToAdd));
+      final advancedTrigger = advancedRenewal.subtract(Duration(days: reminderDaysBefore));
+      return DateTime(
+        advancedTrigger.year,
+        advancedTrigger.month,
+        advancedTrigger.day,
+        defaultReminderHour,
+        defaultReminderMinute,
+      );
+    }
+    
+    return scheduledTrigger;
   }
 
   // Format renewal date for display

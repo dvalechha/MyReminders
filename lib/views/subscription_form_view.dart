@@ -36,21 +36,16 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
   final _notesController = TextEditingController();
   final _paymentMethodController = TextEditingController();
   
-  static const String _paymentPrefix = 'xxxx-xxxx-xxxx-';
+  final _amountFocusNode = FocusNode();
+  
+  static const String _paymentPrefix = 'XXXX-XXXX-XXXX-';
   
   String _getPaymentMethodLast4() {
-    final text = _paymentMethodController.text;
-    if (text.length > _paymentPrefix.length) {
-      return text.substring(_paymentPrefix.length);
-    }
-    return '';
+    return _paymentMethodController.text.trim();
   }
   
   void _setPaymentMethodLast4(String last4) {
-    _paymentMethodController.text = '$_paymentPrefix$last4';
-    _paymentMethodController.selection = TextSelection.fromPosition(
-      TextPosition(offset: _paymentMethodController.text.length),
-    );
+    _paymentMethodController.text = last4;
   }
 
   SubscriptionCategory _selectedCategory = SubscriptionCategory.entertainment;
@@ -67,7 +62,6 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
   @override
   void initState() {
     super.initState();
-    _paymentMethodController.text = _paymentPrefix;
     
     // Add listeners to update button state when fields change
     _serviceNameController.addListener(() {
@@ -125,8 +119,6 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
     _notesController.text = sub.notes ?? '';
     if (sub.paymentMethod != null && sub.paymentMethod!.isNotEmpty) {
       _setPaymentMethodLast4(sub.paymentMethod!);
-    } else {
-      _paymentMethodController.text = _paymentPrefix;
     }
   }
 
@@ -136,6 +128,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
     _amountController.dispose();
     _notesController.dispose();
     _paymentMethodController.dispose();
+    _amountFocusNode.dispose();
     super.dispose();
   }
 
@@ -179,34 +172,136 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
   }
 
   Future<void> _selectCustomReminder() async {
-    // TODO: Re-implement custom reminder modal if feature is brought back
-    debugPrint("Custom reminder modal has been removed.");
-    // final result = await Navigator.push<int>(
-    //   context,
-    //   MaterialPageRoute(
-    //     builder: (context) => CustomReminderModal(
-    //       initialDays: _customReminderDays > 0 ? _customReminderDays : 1,
-    //     ),
-    //   ),
-    // );
+    final TextEditingController daysController = TextEditingController(
+      text: _customReminderDays > 0 ? _customReminderDays.toString() : '1',
+    );
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+    
+    final result = await showDialog<int>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Custom Reminder'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Days before renewal',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ),
+                TextFormField(
+                  controller: daysController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.red),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.red),
+                    ),
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                  ],
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a number';
+                    }
+                    final days = int.tryParse(value);
+                    if (days == null || days < 1 || days > 29) {
+                      return 'Enter 1-29 days';
+                    }
+                    return null;
+                  },
+                  autofocus: true,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Enter a number between 1 and 29 days',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  final days = int.parse(daysController.text);
+                  Navigator.of(context).pop(days);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2D62ED),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
 
-    // if (result != null) {
-    //   setState(() {
-    //     _customReminderDays = result;
-    //     if (result < 1 || result > 29) {
-    //       _selectedReminder = ReminderTime.none;
-    //       _customReminderDays = 0;
-    //     }
-    //   });
-    // } else {
-    //   // User cancelled - reset if no valid days
-    //   if (_customReminderDays < 1 || _customReminderDays > 29) {
-    //     setState(() {
-    //       _selectedReminder = ReminderTime.none;
-    //       _customReminderDays = 0;
-    //     });
-    //   }
-    // }
+    if (result != null) {
+      setState(() {
+        _customReminderDays = result;
+        if (result < 1 || result > 29) {
+          _selectedReminder = ReminderTime.none;
+          _customReminderDays = 0;
+        }
+      });
+    } else {
+      // User cancelled - reset if no valid days
+      if (_customReminderDays < 1 || _customReminderDays > 29) {
+        setState(() {
+          _selectedReminder = ReminderTime.none;
+          _customReminderDays = 0;
+        });
+      }
+    }
   }
 
   Future<void> _saveSubscription() async {
@@ -349,6 +444,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
               ]
             : null,
       ),
+      backgroundColor: Colors.grey[50],
       body: Form(
         key: _formKey,
         child: Column(
@@ -384,235 +480,480 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                       ),
                     ),
                   // Subscription Details Section
-                  const Text(
-                    'SUBSCRIPTION DETAILS',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey,
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _serviceNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Service Name *',
-                      border: OutlineInputBorder(),
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a service name';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<SubscriptionCategory>(
-                    value: _selectedCategory,
-                    decoration: const InputDecoration(
-                      labelText: 'Category *',
-                      border: OutlineInputBorder(),
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                    ),
-                    items: SubscriptionCategory.values.map((category) {
-                      return DropdownMenuItem(
-                        value: category,
-                        child: Text(category.value),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _selectedCategory = value);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _amountController,
-                          decoration: const InputDecoration(
-                            labelText: 'Amount *',
-                            border: OutlineInputBorder(),
-                            floatingLabelBehavior: FloatingLabelBehavior.always,
+                    padding: const EdgeInsets.all(20),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'Service Name *',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
                           ),
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
+                        ),
+                        TextFormField(
+                          controller: _serviceNameController,
+                          textInputAction: TextInputAction.next,
+                          textCapitalization: TextCapitalization.sentences,
+                          onFieldSubmitted: (_) {
+                            FocusScope.of(context).requestFocus(_amountFocusNode);
+                          },
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.red),
+                            ),
+                            focusedErrorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.red),
+                            ),
+                          ),
                           validator: (value) {
-                            if (value == null ||
-                                double.tryParse(value) == null ||
-                                double.parse(value) <= 0) {
-                              return 'Please enter a valid amount';
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter a service name';
                             }
                             return null;
                           },
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        width: 100,
-                        child: DropdownButtonFormField<Currency>(
-                          value: _selectedCurrency,
-                          decoration: const InputDecoration(
-                            labelText: 'Currency',
-                            border: OutlineInputBorder(),
-                            floatingLabelBehavior: FloatingLabelBehavior.always,
+                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'Category *',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
                           ),
-                          items: Currency.values.map((currency) {
-                            return DropdownMenuItem(
-                              value: currency,
-                              child: Text(currency.value),
+                        ),
+                        SizedBox(
+                          height: 56,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<SubscriptionCategory>(
+                                value: _selectedCategory,
+                                isExpanded: true,
+                                items: SubscriptionCategory.values.map((category) {
+                                  return DropdownMenuItem(
+                                    value: category,
+                                    child: Text(category.value),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setState(() => _selectedCategory = value);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'Amount *',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 56,
+                                child: TextFormField(
+                                  controller: _amountController,
+                                  focusNode: _amountFocusNode,
+                                  textInputAction: TextInputAction.done,
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: Colors.grey[100],
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 16,
+                                    ),
+                                    errorBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(color: Colors.red),
+                                    ),
+                                    focusedErrorBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(color: Colors.red),
+                                    ),
+                                  ),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(decimal: true),
+                                  validator: (value) {
+                                    if (value == null ||
+                                        double.tryParse(value) == null ||
+                                        double.parse(value) <= 0) {
+                                      return 'Please enter a valid amount';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Container(
+                              height: 56,
+                              width: 100,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<Currency>(
+                                  value: _selectedCurrency,
+                                  isExpanded: true,
+                                  items: Currency.values.map((currency) {
+                                    return DropdownMenuItem(
+                                      value: currency,
+                                      child: Text(
+                                        currency.value,
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() => _selectedCurrency = value);
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Renewal & Reminder Section
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(20),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'Renewal Date *',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                        InkWell(
+                          onTap: () async {
+                            final date = await showDatePicker(
+                              context: context,
+                              initialDate: _selectedRenewalDate,
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime.now().add(const Duration(days: 3650)),
                             );
-                          }).toList(),
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() => _selectedCurrency = value);
+                            if (date != null) {
+                              setState(() => _selectedRenewalDate = date);
                             }
                           },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  DateFormat('MMM d, yyyy').format(_selectedRenewalDate),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.calendar_today_rounded,
+                                  color: Colors.grey[600],
+                                  size: 20,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 16),
+                          child: Text(
+                            'If you\'re not sure, an approximate date is fine - you can update it anytime.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'Billing Cycle *',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          height: 56,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<BillingCycle>(
+                                value: _selectedBillingCycle,
+                                isExpanded: true,
+                                items: BillingCycle.values.map((cycle) {
+                                  return DropdownMenuItem(
+                                    value: cycle,
+                                    child: Text(cycle.value),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setState(() => _selectedBillingCycle = value);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'Reminder',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                        InkWell(
+                          onTap: () {
+                            showModalBottomSheet(
+                              context: context,
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                              ),
+                              builder: (context) => _buildReminderPicker(),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _reminderDisplayText,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_drop_down,
+                                  color: Colors.grey[600],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Additional Info Section
+                  if (_showAdditionalInfo)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(20),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'Notes',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ),
+                          TextFormField(
+                            controller: _notesController,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Colors.grey[100],
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
+                              errorBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Colors.red),
+                              ),
+                              focusedErrorBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Colors.red),
+                              ),
+                            ),
+                            maxLines: 3,
+                          ),
+                          const SizedBox(height: 20),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'Card Number (Last 4)',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ),
+                          TextFormField(
+                            controller: _paymentMethodController,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Colors.grey[100],
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
+                              prefixText: _paymentPrefix,
+                              prefixStyle: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 16,
+                              ),
+                              counterText: '',
+                              errorBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Colors.red),
+                              ),
+                              focusedErrorBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Colors.red),
+                              ),
+                            ),
+                            keyboardType: TextInputType.number,
+                            maxLength: 4,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() => _showAdditionalInfo = true);
+                        },
+                        icon: const Icon(Icons.add_circle, color: Color(0xFF2D62ED)),
+                        label: const Text(
+                          'Add more details',
+                          style: TextStyle(color: Color(0xFF2D62ED)),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  // Renewal & Reminder Section
-                  const Text(
-                    'RENEWAL & REMINDER',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ListTile(
-                    title: const Text('Renewal Date *'),
-                    subtitle: Text(DateFormat('MMM d, yyyy').format(_selectedRenewalDate)),
-                    trailing: const Icon(Icons.calendar_today),
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedRenewalDate,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 3650)),
-                      );
-                      if (date != null) {
-                        setState(() => _selectedRenewalDate = date);
-                      }
-                    },
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.grey[300]!),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 8),
-                    child: Text(
-                      'If you\'re not sure, an approximate date is fine - you can update it anytime.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey[600],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<BillingCycle>(
-                    value: _selectedBillingCycle,
-                    decoration: const InputDecoration(
-                      labelText: 'Billing Cycle *',
-                      border: OutlineInputBorder(),
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                    ),
-                    items: BillingCycle.values.map((cycle) {
-                      return DropdownMenuItem(
-                        value: cycle,
-                        child: Text(cycle.value),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _selectedBillingCycle = value);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  // Reminder Picker
-                  ListTile(
-                    title: const Text('Reminder'),
-                    subtitle: Text(_reminderDisplayText),
-                    trailing: const Icon(Icons.arrow_drop_down),
-                    onTap: () {
-                      showModalBottomSheet(
-                        context: context,
-                        builder: (context) => _buildReminderPicker(),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  // Additional Info Section
-                  if (_showAdditionalInfo) ...[
-                    const Text(
-                      'ADDITIONAL INFO',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _notesController,
-                      decoration: const InputDecoration(
-                        labelText: 'Notes',
-                        border: OutlineInputBorder(),
-                        floatingLabelBehavior: FloatingLabelBehavior.always,
-                      ),
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _paymentMethodController,
-                      decoration: const InputDecoration(
-                        labelText: 'Payment Method',
-                        border: OutlineInputBorder(),
-                        floatingLabelBehavior: FloatingLabelBehavior.always,
-                      ),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        _PaymentMethodInputFormatter(),
-                      ],
-                      onChanged: (value) {
-                        // Ensure prefix is always present
-                        if (!value.startsWith(_paymentPrefix)) {
-                          final last4 = _getPaymentMethodLast4();
-                          _setPaymentMethodLast4(last4);
-                        } else {
-                          // Limit to 4 digits after prefix
-                          final last4 = value.substring(_paymentPrefix.length);
-                          if (last4.length > 4) {
-                            _setPaymentMethodLast4(last4.substring(0, 4));
-                          }
-                        }
-                      },
-                      onTap: () {
-                        // Move cursor to end if prefix is not complete
-                        if (_paymentMethodController.text.length < _paymentPrefix.length) {
-                          _paymentMethodController.text = _paymentPrefix;
-                        }
-                        _paymentMethodController.selection = TextSelection.fromPosition(
-                          TextPosition(offset: _paymentMethodController.text.length),
-                        );
-                      },
-                    ),
-                  ] else
-                    ListTile(
-                      leading: const Icon(Icons.add_circle, color: Colors.blue),
-                      title: const Text('Add more details'),
-                      onTap: () {
-                        setState(() => _showAdditionalInfo = true);
-                      },
                     ),
                 ],
               ),
@@ -636,8 +977,16 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                 child: ElevatedButton(
                   onPressed: (_isFormValid && !_isSaving) ? _saveSubscription : null,
                   style: ElevatedButton.styleFrom(
+                    backgroundColor: (_isFormValid && !_isSaving)
+                        ? const Color(0xFF2D62ED)
+                        : Colors.grey,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: (_isFormValid && !_isSaving) ? 4 : 0,
+                    minimumSize: const Size(double.infinity, 56),
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: (_isFormValid && !_isSaving) ? Colors.blue : Colors.grey,
                   ),
                   child: _isSaving
                       ? const SizedBox(
@@ -670,13 +1019,17 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
   Widget _buildReminderPicker() {
     return Container(
       padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: ReminderTime.values.map((reminder) {
           final isSelected = _selectedReminder == reminder;
           return ListTile(
             title: Text(reminder == ReminderTime.custom ? 'Custom' : reminder.value),
-            trailing: isSelected ? const Icon(Icons.check, color: Colors.blue) : null,
+            trailing: isSelected ? const Icon(Icons.check, color: Color(0xFF2D62ED)) : null,
             onTap: () {
               setState(() {
                 _selectedReminder = reminder;
@@ -691,53 +1044,6 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
           );
         }).toList(),
       ),
-    );
-  }
-}
-
-class _PaymentMethodInputFormatter extends TextInputFormatter {
-  static const String prefix = 'xxxx-xxxx-xxxx-';
-  
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    // If text doesn't start with prefix, add it
-    if (!newValue.text.startsWith(prefix)) {
-      // Extract only digits from the new value
-      final digits = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
-      
-      // Limit to 4 digits
-      final last4 = digits.length > 4 ? digits.substring(0, 4) : digits;
-      
-      final newText = '$prefix$last4';
-      return TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: newText.length),
-      );
-    }
-    
-    // Extract only the part after the prefix
-    final afterPrefix = newValue.text.length > prefix.length
-        ? newValue.text.substring(prefix.length)
-        : '';
-    
-    // Filter to only digits and limit to 4
-    final digits = afterPrefix.replaceAll(RegExp(r'[^\d]'), '');
-    final last4 = digits.length > 4 ? digits.substring(0, 4) : digits;
-    
-    final newText = '$prefix$last4';
-    
-    // Calculate cursor position
-    int cursorPosition = newText.length;
-    if (newValue.selection.baseOffset > prefix.length) {
-      cursorPosition = prefix.length + last4.length;
-    }
-    
-    return TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: cursorPosition),
     );
   }
 }
