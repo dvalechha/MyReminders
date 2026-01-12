@@ -15,12 +15,11 @@ import '../models/subscription.dart';
 DateTime _advanceRenewalDateIfPast(DateTime renewalDate, BillingCycle billingCycle) {
   final now = DateTime.now();
   
-  // Check if renewal date is today or in the past
-  final isToday = renewalDate.year == now.year && 
-                  renewalDate.month == now.month && 
-                  renewalDate.day == now.day;
+  // Convert renewal date to local time for proper comparison
+  final renewalLocal = renewalDate.isUtc ? renewalDate.toLocal() : renewalDate;
   
-  if (renewalDate.isBefore(now) || isToday) {
+  // Only advance if renewal time has actually passed (not just if it's the same day)
+  if (renewalLocal.isBefore(now)) {
     // Calculate days per cycle based on billing cycle
     int daysPerCycle;
     switch (billingCycle) {
@@ -38,8 +37,8 @@ DateTime _advanceRenewalDateIfPast(DateTime renewalDate, BillingCycle billingCyc
         break;
     }
     
-    // Calculate how many days have passed since renewal date
-    final daysDiff = now.difference(renewalDate).inDays;
+    // Calculate how many days have passed since renewal date (using local times)
+    final daysDiff = now.difference(renewalLocal).inDays;
     
     // Calculate how many full cycles have passed since the renewal date
     final cyclesPassed = (daysDiff / daysPerCycle).floor();
@@ -48,20 +47,17 @@ DateTime _advanceRenewalDateIfPast(DateTime renewalDate, BillingCycle billingCyc
     final cyclesToAdvance = cyclesPassed + 1;
     
     // Calculate the next renewal date directly (no loop needed)
-    final nextRenewal = renewalDate.add(Duration(days: cyclesToAdvance * daysPerCycle));
+    final nextRenewal = renewalLocal.add(Duration(days: cyclesToAdvance * daysPerCycle));
     
     // Double-check: if still in the past (edge case), add one more cycle
-    if (nextRenewal.isBefore(now) || 
-        (nextRenewal.year == now.year && 
-         nextRenewal.month == now.month && 
-         nextRenewal.day == now.day)) {
+    if (nextRenewal.isBefore(now)) {
       return nextRenewal.add(Duration(days: daysPerCycle));
     }
     
     return nextRenewal;
   }
   
-  return renewalDate;
+  return renewalLocal;
 }
 
 /// Get status color based on renewal date
@@ -74,7 +70,13 @@ Color getSubscriptionStatusColor(
   
   // Auto-advance renewal date if it's in the past
   final effectiveRenewalDate = _advanceRenewalDateIfPast(renewalDate, billingCycle);
-  final daysUntilRenewal = effectiveRenewalDate.difference(now).inDays;
+  
+  // Convert to local time if needed and normalize to date-only for comparison
+  final effectiveLocal = effectiveRenewalDate.isUtc ? effectiveRenewalDate.toLocal() : effectiveRenewalDate;
+  final effectiveDateOnly = DateTime(effectiveLocal.year, effectiveLocal.month, effectiveLocal.day);
+  final nowDateOnly = DateTime(now.year, now.month, now.day);
+  
+  final daysUntilRenewal = effectiveDateOnly.difference(nowDateOnly).inDays;
   
   // Renews soon (0-7 days) = Orange/Amber (warning)
   // This gives users a heads-up for upcoming renewals, including "today"
@@ -130,7 +132,13 @@ String getRenewalText(DateTime renewalDate, {required BillingCycle billingCycle}
   
   // Auto-advance renewal date if it's in the past
   final effectiveRenewalDate = _advanceRenewalDateIfPast(renewalDate, billingCycle);
-  final daysUntilRenewal = effectiveRenewalDate.difference(now).inDays;
+  
+  // Convert to local time if needed and normalize to date-only for comparison
+  final effectiveLocal = effectiveRenewalDate.isUtc ? effectiveRenewalDate.toLocal() : effectiveRenewalDate;
+  final effectiveDateOnly = DateTime(effectiveLocal.year, effectiveLocal.month, effectiveLocal.day);
+  final nowDateOnly = DateTime(now.year, now.month, now.day);
+  
+  final daysUntilRenewal = effectiveDateOnly.difference(nowDateOnly).inDays;
   
   if (daysUntilRenewal == 0) {
     return 'Renews today';

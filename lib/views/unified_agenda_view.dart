@@ -36,11 +36,11 @@ class _UnifiedAgendaViewState extends State<UnifiedAgendaView> {
           : Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: ListView.builder(
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
                   return _buildAgendaCard(item);
-                },
+              },
               ),
             ),
     );

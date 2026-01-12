@@ -15,10 +15,6 @@ class NotificationService {
 
   NotificationService._init();
 
-  // Default reminder time: 7:00 PM local time
-  static const int defaultReminderHour = 19;
-  static const int defaultReminderMinute = 0;
-
   // Initialize notifications
   Future<bool> initialize() async {
     if (_initialized) return _authorized;
@@ -150,13 +146,13 @@ class NotificationService {
     // Calculate trigger date: renewalDate - reminderDaysBefore
     final triggerDate = renewalDate.subtract(Duration(days: reminderDaysBefore));
 
-    // Set time to 7:00 PM local time
+    // Use the time from the renewalDate (user-selected time) instead of hardcoded 7 PM
     final scheduledDate = DateTime(
       triggerDate.year,
       triggerDate.month,
       triggerDate.day,
-      defaultReminderHour,
-      defaultReminderMinute,
+      renewalDate.hour,
+      renewalDate.minute,
     );
 
     // Convert to TZDateTime for proper timezone-aware comparison
@@ -290,13 +286,13 @@ class NotificationService {
     // Calculate trigger date (nextRenewal - reminderDaysBefore)
     final triggerDate = nextRenewal.subtract(Duration(days: reminderDaysBefore));
 
-    // Set time to 7:00 PM
+    // Use the time from the original renewalDate (user-selected time)
     final scheduledTrigger = DateTime(
       triggerDate.year,
       triggerDate.month,
       triggerDate.day,
-      defaultReminderHour,
-      defaultReminderMinute,
+      currentRenewalDate.hour,
+      currentRenewalDate.minute,
     );
     
     // Final validation: ensure the trigger date is still in the future
@@ -311,8 +307,8 @@ class NotificationService {
         advancedTrigger.year,
         advancedTrigger.month,
         advancedTrigger.day,
-        defaultReminderHour,
-        defaultReminderMinute,
+        currentRenewalDate.hour,
+        currentRenewalDate.minute,
       );
     }
     
