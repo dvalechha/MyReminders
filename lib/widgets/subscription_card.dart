@@ -68,32 +68,29 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
 
   @override
   Widget build(BuildContext context) {
-    // 2. Status Logic (UTC Check)
-    final nowUtc = DateTime.now().toUtc();
-    final todayUtc = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day);
-    
-    final renewalUtc = widget.subscription.renewalDate.toUtc();
-    final renewalDateUtc = DateTime.utc(renewalUtc.year, renewalUtc.month, renewalUtc.day);
-    
-    final isOverdue = renewalDateUtc.isBefore(todayUtc);
-    final isDueToday = renewalDateUtc.isAtSameMomentAs(todayUtc);
+    // Use centralized status logic with timestamp-level granularity
+    final status = getSubscriptionStatus(widget.subscription.renewalDate);
+    final isOverdue = status == SubscriptionStatus.overdue;
+    final isDueToday = status == SubscriptionStatus.dueToday;
     final showRenewButton = isOverdue || isDueToday;
 
-    // Determine status color and text based on UTC status
     final Color statusColor;
     final String statusText;
     
-    if (isOverdue) {
+    // Status text from helper (handles "Overdue", "Due today", "Renews in X days")
+    statusText = getRenewalText(
+      widget.subscription.renewalDate, 
+      billingCycle: widget.subscription.billingCycle,
+    );
+
+    if (isOverdue || isDueToday) {
       statusColor = Colors.red;
-      final daysOverdue = todayUtc.difference(renewalDateUtc).inDays;
-      statusText = 'Overdue by $daysOverdue day${daysOverdue == 1 ? '' : 's'}';
-    } else if (isDueToday) {
-      statusColor = Colors.orange; // or Red/Orange based on preference, prompt says "Due today"
-      statusText = 'Due today';
     } else {
-      statusColor = Colors.greenAccent;
-      // Fallback to helper for future dates as logic is complex (days until)
-      statusText = getRenewalText(widget.subscription.renewalDate, billingCycle: widget.subscription.billingCycle);
+      // Get status color from helper
+      statusColor = getSubscriptionStatusColor(
+        widget.subscription.renewalDate,
+        billingCycle: widget.subscription.billingCycle,
+      );
     }
 
     final firstLetter = widget.subscription.serviceName.isNotEmpty

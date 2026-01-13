@@ -6,14 +6,17 @@ enum SubscriptionStatus { overdue, dueToday, normal }
 /// Get the status of a subscription based on its renewal date
 SubscriptionStatus getSubscriptionStatus(DateTime renewalDate) {
   final nowUtc = DateTime.now().toUtc();
-  final todayUtc = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day);
-  
   final renewalUtc = renewalDate.toUtc();
+
+  if (renewalUtc.isBefore(nowUtc)) {
+    return SubscriptionStatus.overdue;
+  } 
+  
+  // Check if it is the same calendar day in UTC
+  final todayUtc = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day);
   final renewalDayUtc = DateTime.utc(renewalUtc.year, renewalUtc.month, renewalUtc.day);
 
-  if (renewalDayUtc.isBefore(todayUtc)) {
-    return SubscriptionStatus.overdue;
-  } else if (renewalDayUtc.isAtSameMomentAs(todayUtc)) {
+  if (renewalDayUtc.isAtSameMomentAs(todayUtc)) {
     return SubscriptionStatus.dueToday;
   } else {
     return SubscriptionStatus.normal;
@@ -141,6 +144,9 @@ String getRenewalText(DateTime renewalDate, {required BillingCycle billingCycle}
   final daysDiff = renewalDateOnlyUtc.difference(nowDateOnlyUtc).inDays;
   
   if (status == SubscriptionStatus.overdue) {
+    if (daysDiff == 0) {
+      return 'Overdue (Due earlier today)';
+    }
     return 'Overdue by ${daysDiff.abs()} day${daysDiff.abs() == 1 ? '' : 's'}';
   } else if (status == SubscriptionStatus.dueToday) {
     return 'Due today';
