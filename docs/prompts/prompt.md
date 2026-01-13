@@ -1,40 +1,23 @@
-I need to refactor the `SubscriptionCard` widget to implement specific visual polish and interaction logic.
-
 **Context:**
-This card displays subscription details. We are refining the "Overdue/Renew" experience.
+I am experiencing a critical Timezone/UTC mismatch bug. My application shows items as "Due Today" or "Past Due" incorrectly because the `renewal_date` was saved as Local Time, but the database/query logic treats it as UTC (or uses naive timestamps).
 
-Please implement the following changes:
+**Objective:**
+I need to enforce strict UTC handling across the Database, API, and Query logic to ensure "Due Date" comparisons are accurate regardless of the user's local timezone.
 
-### 1. Layout & Visual Polish
-* **Remove Bottom Line:** Remove the red progress/divider line from the bottom of the card. The Left Vertical Bar is sufficient for status indication.
-* **Safety Layout (Left Side):** Wrap the Left Column (Name, Cycle, Due Date) inside an `Expanded` widget. This is critical to prevent the text from pushing the Right Side Action Zone off-screen on small devices.
-* **Alignment:** Ensure the "Due Today/Overdue" text (Left Side) aligns visually with the bottom of the "Renew" button (Right Side).
-* **Right Side Stack:** Ensure the Price and Renew Button are in a `Column` aligned to `CrossAxisAlignment.end` (Price on top, Button below).
+**My Tech Stack:**
+* **Database:** Supabase (PostgreSQL)
+* **Frontend/Backend:** [Insert your framework here, e.g., Next.js / React / Node.js]
 
-### 2. Status Logic (UTC Check)
-Determine the status label based on **UTC Date** comparison (ignore time):
-* **Logic:** Compare `renewalDate` (in UTC) vs `DateTime.now()` (in UTC). Strip the time components to compare dates only.
-* **Labels:**
-    * **"Overdue"**: If the renewal date is strictly *before* today (UTC).
-    * **"Due today"**: If the renewal date is *equal* to today (UTC).
+**Please provide the code and SQL for the following 3 fixes:**
 
-### 3. The "Renew" Button State Strategy
-Implement a local state (e.g., `bool _isPaid`) to handle the "Renew" interaction.
+### 1. Database Schema & Data Migration (SQL)
+* **Schema Change:** Provide the SQL to alter the `renewal_date` column to use `TIMESTAMPTZ` (Timestamp with Time Zone).
+* **Data Repair:** I have existing records stored as "Local Time" (e.g., `2026-01-13 17:00:00`) without an offset. Provide a SQL query to convert these specific records to valid UTC by adding the correct offset (assume the data was entered in **[Insert your Timezone, e.g., EST/UTC-5]**).
 
-**State A: Idle (Action Required)**
-* **Condition:** `!_isPaid`
-* **Background:** Light Red (`Colors.red.shade50`)
-* **Text/Icon Color:** Dark Red (`Colors.red.shade900`)
-* **Text:** "Renew"
-* **Icon:** `Icons.check_circle_outline` (Hollow)
-* **Action:** On tap, set `_isPaid = true` and trigger the success logic.
+### 2. The "Write" Logic (Backend)
+* Review the standard saving function.
+* Show me how to sanitize the date immediately upon request. Ensure that `renewal_date` is converted to a strict ISO-8601 UTC string (e.g., `.toISOString()`) *before* it is sent to the database.
 
-**State B: Success (Just Clicked)**
-* **Condition:** `_isPaid`
-* **Background:** Light Green (`Colors.green.shade50`)
-* **Text/Icon Color:** Dark Green (`Colors.green.shade900`)
-* **Text:** "Paid!"
-* **Icon:** `Icons.check_circle` (Solid/Filled)
-* **Action:** Disable tap. (Note: For now, just show this visual state; we will connect the DB logic later).
-
-Please generate the full `build` method for the `SubscriptionCard` widget incorporating these requirements.
+### 3. The "Read" Comparison Logic (Query)
+* Fix the specific SQL or filter logic used to determine if an item is "Due".
+* Ensure we are comparing the stored `renewal_date` against `NOW() AT TIME ZONE 'UTC'` (or the framework equivalent) so the comparison is strictly UTC-to-UTC.
