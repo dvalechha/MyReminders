@@ -51,6 +51,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
   SubscriptionCategory _selectedCategory = SubscriptionCategory.entertainment;
   Currency _selectedCurrency = Currency.usd;
   DateTime _selectedRenewalDate = DateTime.now();
+  TimeOfDay _selectedRenewalTime = TimeOfDay.now();
   BillingCycle _selectedBillingCycle = BillingCycle.monthly;
   ReminderTime _selectedReminder = ReminderTime.none;
   int _customReminderDays = 0;
@@ -58,6 +59,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
 
   bool _isAuthorized = false;
   bool _isSaving = false; // Guard against double-submission
+  String? _renewalDateTimeError;
 
   @override
   void initState() {
@@ -70,6 +72,10 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
     _amountController.addListener(() {
       setState(() {});
     });
+    
+    // Initialize time to current time or next hour for new subscriptions
+    final now = DateTime.now();
+    _selectedRenewalTime = TimeOfDay.fromDateTime(now);
     
     _checkNotificationPermission();
     if (widget.subscription != null) {
@@ -84,6 +90,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
       }
       if (widget.initialRenewalDate != null) {
         _selectedRenewalDate = widget.initialRenewalDate!;
+        _selectedRenewalTime = TimeOfDay.fromDateTime(widget.initialRenewalDate!);
       }
       if (widget.initialNotes != null) {
         _notesController.text = widget.initialNotes!;
@@ -95,6 +102,9 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
         _selectedCurrency = widget.initialCurrency!;
       }
     }
+    
+    // Set time to next hour if current time is in the past relative to renewal date
+    _validateRenewalDateTime();
   }
 
   Future<void> _checkNotificationPermission() async {
@@ -113,6 +123,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
     _selectedCategory = sub.category;
     _selectedCurrency = sub.currency;
     _selectedRenewalDate = sub.renewalDate;
+    _selectedRenewalTime = TimeOfDay.fromDateTime(sub.renewalDate);
     _selectedBillingCycle = sub.billingCycle;
     _selectedReminder = sub.reminder;
     _customReminderDays = sub.reminderDaysBefore;
@@ -120,6 +131,55 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
     if (sub.paymentMethod != null && sub.paymentMethod!.isNotEmpty) {
       _setPaymentMethodLast4(sub.paymentMethod!);
     }
+    _validateRenewalDateTime();
+  }
+  
+  // Combine date and time into a DateTime
+  DateTime _getCombinedRenewalDateTime() {
+    return DateTime(
+      _selectedRenewalDate.year,
+      _selectedRenewalDate.month,
+      _selectedRenewalDate.day,
+      _selectedRenewalTime.hour,
+      _selectedRenewalTime.minute,
+    );
+  }
+  
+  // Calculate the effective notification time (renewal date - reminder offset)
+  DateTime _getEffectiveNotificationTime() {
+    final renewalDateTime = _getCombinedRenewalDateTime();
+    final reminderDays = _reminderDaysBefore;
+    
+    if (reminderDays <= 0) {
+      // No reminder - effective time is just the renewal date itself
+      return renewalDateTime;
+    }
+    
+    // Subtract reminder offset days
+    return renewalDateTime.subtract(Duration(days: reminderDays));
+  }
+  
+  // Validate notification time - check if effective notification time is in the past
+  bool isNotificationValid() {
+    final effectiveNotificationTime = _getEffectiveNotificationTime();
+    final now = DateTime.now();
+    
+    return !effectiveNotificationTime.isBefore(now);
+  }
+  
+  // Validate notification and update error message
+  void _validateRenewalDateTime() {
+    setState(() {
+      if (!isNotificationValid()) {
+        if (_selectedReminder == ReminderTime.none) {
+          _renewalDateTimeError = 'Renewal date cannot be in the past.';
+        } else {
+          _renewalDateTimeError = 'The reminder time for this date has already passed. Please choose a later date.';
+        }
+      } else {
+        _renewalDateTimeError = null;
+      }
+    });
   }
 
   @override
@@ -134,7 +194,8 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
 
   bool get _isFormValid {
     return _serviceNameController.text.trim().isNotEmpty &&
-        (double.tryParse(_amountController.text) ?? 0.0) > 0;
+        (double.tryParse(_amountController.text) ?? 0.0) > 0 &&
+        isNotificationValid();
   }
 
   String get _reminderDisplayText {
@@ -292,6 +353,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
           _selectedReminder = ReminderTime.none;
           _customReminderDays = 0;
         }
+        _validateRenewalDateTime();
       });
     } else {
       // User cancelled - reset if no valid days
@@ -299,6 +361,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
         setState(() {
           _selectedReminder = ReminderTime.none;
           _customReminderDays = 0;
+          _validateRenewalDateTime();
         });
       }
     }
@@ -311,6 +374,18 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
       return;
     }
     
+    // Validate date + time is not in the past
+    _validateRenewalDateTime();
+    if (_renewalDateTimeError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_renewalDateTimeError!),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
     if (!_formKey.currentState!.validate() || !_isFormValid) {
       return;
     }
@@ -320,6 +395,15 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
     });
 
     final provider = Provider.of<SubscriptionProvider>(context, listen: false);
+    
+    // Combine date and time into full DateTime
+    final combinedRenewalDateTime = DateTime(
+      _selectedRenewalDate.year,
+      _selectedRenewalDate.month,
+      _selectedRenewalDate.day,
+      _selectedRenewalTime.hour,
+      _selectedRenewalTime.minute,
+    );
 
     final subscription = Subscription(
       id: widget.subscription?.id,
@@ -327,7 +411,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
       category: _selectedCategory,
       amount: double.parse(_amountController.text),
       currency: _selectedCurrency,
-      renewalDate: _selectedRenewalDate,
+      renewalDate: combinedRenewalDateTime,
       billingCycle: _selectedBillingCycle,
       reminder: _selectedReminder,
       reminderType: _reminderType,
@@ -699,50 +783,137 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                             ),
                           ),
                         ),
-                        InkWell(
-                          onTap: () async {
-                            final date = await showDatePicker(
-                              context: context,
-                              initialDate: _selectedRenewalDate,
-                              firstDate: DateTime.now(),
-                              lastDate: DateTime.now().add(const Duration(days: 3650)),
-                            );
-                            if (date != null) {
-                              setState(() => _selectedRenewalDate = date);
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  DateFormat('MMM d, yyyy').format(_selectedRenewalDate),
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.black87,
+                        Row(
+                          children: [
+                            // Date Picker
+                            Expanded(
+                              child: InkWell(
+                                onTap: () async {
+                                  // Allow past dates for subscriptions (they may have already renewed)
+                                  // Ensure firstDate is not later than initialDate
+                                  // Set firstDate to be 1 year before initialDate - this guarantees firstDate < initialDate
+                                  final firstDate = _selectedRenewalDate.subtract(const Duration(days: 365));
+                                  
+                                  final date = await showDatePicker(
+                                    context: context,
+                                    initialDate: _selectedRenewalDate,
+                                    firstDate: firstDate,
+                                    lastDate: DateTime.now().add(const Duration(days: 3650)),
+                                  );
+                                  if (date != null) {
+                                    setState(() {
+                                      // Preserve the existing time component when updating the date
+                                      _selectedRenewalDate = DateTime(
+                                        date.year,
+                                        date.month,
+                                        date.day,
+                                        _selectedRenewalDate.hour,
+                                        _selectedRenewalDate.minute,
+                                      );
+                                      _validateRenewalDateTime();
+                                    });
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          DateFormat('MMM d, yyyy').format(_selectedRenewalDate),
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.black87,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Icon(
+                                        Icons.calendar_today_rounded,
+                                        color: Colors.grey[600],
+                                        size: 20,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                Icon(
-                                  Icons.calendar_today_rounded,
-                                  color: Colors.grey[600],
-                                  size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Time Picker
+                            Expanded(
+                              child: InkWell(
+                                onTap: () async {
+                                  final time = await showTimePicker(
+                                    context: context,
+                                    initialTime: _selectedRenewalTime,
+                                  );
+                                  if (time != null) {
+                                    setState(() {
+                                      _selectedRenewalTime = time;
+                                      _validateRenewalDateTime();
+                                    });
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          _selectedRenewalTime.format(context),
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.black87,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Icon(
+                                        Icons.access_time_rounded,
+                                        color: Colors.grey[600],
+                                        size: 20,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        // Error message for validation
+                        if (_renewalDateTimeError != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              _renewalDateTimeError!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.red,
+                              ),
                             ),
                           ),
-                        ),
                         Padding(
                           padding: const EdgeInsets.only(top: 8, bottom: 16),
                           child: Text(
-                            'If you\'re not sure, an approximate date is fine - you can update it anytime.',
+                            'Select when your subscription renews. The date and time cannot be in the past.',
                             style: TextStyle(
                               fontSize: 13,
                               color: Colors.grey[600],
@@ -1038,6 +1209,7 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
                   _selectCustomReminder();
                 } else {
                   Navigator.pop(context);
+                  _validateRenewalDateTime();
                 }
               });
             },

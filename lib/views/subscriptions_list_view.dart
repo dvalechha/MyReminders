@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -39,6 +40,25 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
   bool _hasLoaded = false;
   SubscriptionCategory? _filterCategory;
   bool _filterRenewingSoon = false;
+  Set<String> _selectedIds = {};
+  
+  bool get _isSelectionMode => _selectedIds.isNotEmpty;
+  
+  void _clearSelection() {
+    setState(() {
+      _selectedIds.clear();
+    });
+  }
+  
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -160,115 +180,186 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
         final filteredSubscriptions =
             _filterSubscriptions(provider.subscriptions, _searchText);
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('My Subscriptions'),
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.add),
-                onPressed: () {
-                  MainNavigationKeys.homeNavigatorKey.currentState?.push(
-                    MaterialPageRoute(
-                      builder: (context) => const SubscriptionFormView(),
-                      settings: const RouteSettings(name: 'SubscriptionFormView'),
-                    ),
-                  );
-                },
+        return PopScope(
+          canPop: !_isSelectionMode,
+          onPopInvoked: (didPop) {
+            if (!didPop && _isSelectionMode) {
+              _clearSelection();
+            }
+          },
+          child: Scaffold(
+            appBar: _buildAppBar(context),
+            backgroundColor: Colors.grey[100], // Light grey background
+            body: provider.subscriptions.isEmpty
+                ? _buildEmptyState(context)
+                : _buildSubscriptionsList(context, provider, filteredSubscriptions),
+          ),
+        );
+      },
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
+    if (_isSelectionMode) {
+      return AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: _clearSelection,
+        ),
+        title: Text('${_selectedIds.length} Selected'),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: _deleteSelectedItems,
+          ),
+        ],
+      );
+    } else {
+      return AppBar(
+        title: const Text('My Subscriptions'),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () {
+              MainNavigationKeys.homeNavigatorKey.currentState?.push(
+                MaterialPageRoute(
+                  builder: (context) => const SubscriptionFormView(),
+                  settings: const RouteSettings(name: 'SubscriptionFormView'),
+                ),
+              );
+            },
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(56),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+              child: TextField(
+                onChanged: (value) {
+                  setState(() {
+                    _searchText = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search subscriptions...',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Filter icon
+                      IconButton(
+                        icon: Stack(
+                          children: [
+                            const Icon(Icons.tune, size: 20),
+                            if (_filterCategory != null || _filterRenewingSoon)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.blue,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        onPressed: () async {
+                          final result = await showDialog<Map<String, dynamic>>(
+                            context: context,
+                            builder: (context) => SubscriptionFilterDialog(
+                              initialCategory: _filterCategory,
+                            ),
+                          );
+                          if (result != null) {
+                            setState(() {
+                              _filterCategory = result['category'] as SubscriptionCategory?;
+                              _filterRenewingSoon = result['renewingSoon'] as bool? ?? false;
+                            });
+                          }
+                        },
                       ),
+                      // Clear icon
+                      if (_searchText.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.clear, size: 20),
+                          onPressed: () {
+                            setState(() {
+                              _searchText = '';
+                            });
+                          },
+                        ),
                     ],
                   ),
-                  child: TextField(
-                    onChanged: (value) {
-                      setState(() {
-                        _searchText = value;
-                      });
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'Search subscriptions...',
-                      prefixIcon: const Icon(Icons.search, size: 20),
-                      suffixIcon: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Filter icon
-                          IconButton(
-                            icon: Stack(
-                              children: [
-                                const Icon(Icons.tune, size: 20),
-                                if (_filterCategory != null || _filterRenewingSoon)
-                                  Positioned(
-                                    right: 0,
-                                    top: 0,
-                                    child: Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: const BoxDecoration(
-                                        color: Colors.blue,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            onPressed: () async {
-                              final result = await showDialog<Map<String, dynamic>>(
-                                context: context,
-                                builder: (context) => SubscriptionFilterDialog(
-                                  initialCategory: _filterCategory,
-                                ),
-                              );
-                              if (result != null) {
-                                setState(() {
-                                  _filterCategory = result['category'] as SubscriptionCategory?;
-                                  _filterRenewingSoon = result['renewingSoon'] as bool? ?? false;
-                                });
-                              }
-                            },
-                          ),
-                          // Clear icon
-                          if (_searchText.isNotEmpty)
-                            IconButton(
-                              icon: const Icon(Icons.clear, size: 20),
-                              onPressed: () {
-                                setState(() {
-                                  _searchText = '';
-                                });
-                              },
-                            ),
-                        ],
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                    ),
-                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
                 ),
               ),
             ),
           ),
-          backgroundColor: Colors.grey[100], // Light grey background
-          body: provider.subscriptions.isEmpty
-              ? _buildEmptyState(context)
-              : _buildSubscriptionsList(context, provider, filteredSubscriptions),
-        );
-      },
+        ),
+      );
+    }
+  }
+  
+  void _deleteSelectedItems() {
+    if (_selectedIds.isEmpty) return;
+    
+    final provider = Provider.of<SubscriptionProvider>(context, listen: false);
+    final deletedSubscriptions = <Subscription>[];
+    
+    // Store deleted subscriptions for undo
+    for (final id in _selectedIds) {
+      final subscription = provider.subscriptions.firstWhere(
+        (s) => s.id == id,
+        orElse: () => throw Exception('Subscription not found'),
+      );
+      deletedSubscriptions.add(subscription);
+    }
+    
+    // Delete all selected subscriptions
+    for (final id in _selectedIds) {
+      provider.deleteSubscription(id);
+    }
+    
+    // Clear selection
+    _clearSelection();
+    
+    // Show snackbar with undo option
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Items deleted'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () {
+            // Restore deleted subscriptions
+            for (final subscription in deletedSubscriptions) {
+              provider.addSubscription(subscription);
+            }
+          },
+        ),
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 
@@ -451,10 +542,15 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
     final firstLetter = subscription.serviceName.isNotEmpty
         ? subscription.serviceName[0].toUpperCase()
         : '?';
+    final isSelected = _selectedIds.contains(subscription.id);
+    final brandBlue = Colors.blue; // Using Colors.blue as brand blue
 
-    final cardContent = SmartListTile(
-      statusColor: statusColor,
-      onTap: () {
+    void handleTap() {
+      if (_isSelectionMode) {
+        // Toggle selection
+        _toggleSelection(subscription.id);
+      } else {
+        // Navigate to details
         MainNavigationKeys.homeNavigatorKey.currentState?.push(
           MaterialPageRoute(
             builder: (context) => SubscriptionFormView(
@@ -463,133 +559,199 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
             settings: const RouteSettings(name: 'SubscriptionFormView'),
           ),
         );
-      },
+      }
+    }
+
+    void handleLongPress() {
+      if (!_isSelectionMode) {
+        // Enter selection mode
+        HapticFeedback.lightImpact();
+        _toggleSelection(subscription.id);
+      }
+    }
+
+    final cardContent = Container(
       padding: const EdgeInsets.all(16),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 15,
-          offset: const Offset(0, 5),
-        ),
-      ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      decoration: BoxDecoration(
+        color: isSelected ? Colors.blue.shade50 : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: isSelected
+            ? Border.all(color: brandBlue, width: 2)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Leading: Rounded Rectangle Avatar (Squircle)
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(
-                    firstLetter,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: statusColor,
-                    ),
-                  ),
+          // Status strip (only show if not selected)
+          if (!isSelected)
+            Container(
+              width: 6,
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  bottomLeft: Radius.circular(16),
                 ),
               ),
-              const SizedBox(width: 16),
-              // Center: Subscription Name and Renewal Text
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+          if (!isSelected) const SizedBox(width: 4),
+          // Main content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Row 1: Subscription Name (Semi-Bold)
-                    Text(
-                      subscription.serviceName,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
+                    // Leading: Avatar or Check icon
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: isSelected
+                          ? CircleAvatar(
+                              key: const ValueKey('check'),
+                              radius: 24,
+                              backgroundColor: brandBlue,
+                              child: const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            )
+                          : Container(
+                              key: const ValueKey('avatar'),
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: statusColor.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  firstLetter,
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: statusColor,
+                                  ),
+                                ),
+                              ),
+                            ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Center: Subscription Name and Renewal Text
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Row 1: Subscription Name (Semi-Bold)
+                          Text(
+                            subscription.serviceName,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          // Row 2: Renewal text
+                          const SizedBox(height: 6),
+                          Text(
+                            getRenewalText(
+                              subscription.renewalDate,
+                              billingCycle: subscription.billingCycle,
+                            ),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[700],
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    // Row 2: Renewal text
-                    const SizedBox(height: 6),
+                    // Trailing: Price (Bold, vertically aligned with avatar center)
                     Text(
-                      getRenewalText(
-                        subscription.renewalDate,
-                        billingCycle: subscription.billingCycle,
-                      ),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.w400,
+                      '\$${subscription.amount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
                       ),
                     ),
                   ],
                 ),
-              ),
-              // Trailing: Price (Bold, vertically aligned with avatar center)
-              Text(
-                '\$${subscription.amount.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-          // Bottom Accessory: LinearProgressIndicator
-          const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: Colors.grey.withOpacity(0.2),
-            valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-            minHeight: 3,
-            borderRadius: BorderRadius.circular(1.5),
+                // Bottom Accessory: LinearProgressIndicator (only show if not selected)
+                if (!isSelected) ...[
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: Colors.grey.withOpacity(0.2),
+                    valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                    minHeight: 3,
+                    borderRadius: BorderRadius.circular(1.5),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
     );
 
-    // Wrap in Dismissible for swipe-to-delete
-    return Dismissible(
-      key: Key(subscription.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(
-          color: Colors.red,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      confirmDismiss: (direction) async {
-        return await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete Subscription'),
-            content: Text(
-                'Are you sure you want to delete ${subscription.serviceName}?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Delete', style: TextStyle(color: Colors.red)),
-              ),
-            ],
-          ),
-        );
-      },
-      onDismissed: (direction) {
-        provider.deleteSubscription(subscription.id);
-      },
+    // Wrap in GestureDetector for long press and tap handling
+    final interactiveCard = GestureDetector(
+      onTap: handleTap,
+      onLongPress: handleLongPress,
       child: cardContent,
     );
+
+    // Wrap in Dismissible for swipe-to-delete (only when not in selection mode)
+    if (_isSelectionMode) {
+      return interactiveCard;
+    } else {
+      return Dismissible(
+        key: Key(subscription.id),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          decoration: BoxDecoration(
+            color: Colors.red,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Icon(Icons.delete, color: Colors.white),
+        ),
+        confirmDismiss: (direction) async {
+          return await showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Delete Subscription'),
+              content: Text(
+                  'Are you sure you want to delete ${subscription.serviceName}?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                ),
+              ],
+            ),
+          );
+        },
+        onDismissed: (direction) {
+          provider.deleteSubscription(subscription.id);
+        },
+        child: interactiveCard,
+      );
+    }
   }
 
   Widget _buildBarChart(List<MonthlySpend> monthlyData, double totalMonthlySpend) {

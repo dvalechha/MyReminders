@@ -48,13 +48,13 @@ class TodaysSnapshotView extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   TextButton(
-                    onPressed: onTap,
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: const Size(0, 0),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
+                      onPressed: onTap,
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
                       'View All',
                       style: TextStyle(fontSize: 14),
                     ),
@@ -131,7 +131,10 @@ class TodaysSnapshotView extends StatelessWidget {
   }
 
   bool _isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
+    // Convert to local time if needed for proper comparison
+    final aLocal = a.isUtc ? a.toLocal() : a;
+    final bLocal = b.isUtc ? b.toLocal() : b;
+    return aLocal.year == bLocal.year && aLocal.month == bLocal.month && aLocal.day == bLocal.day;
   }
 
   int _priorityScore(TaskPriority? priority) {
