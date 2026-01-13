@@ -35,7 +35,33 @@ DateTime calculateNextRenewal(DateTime currentRenewal, BillingCycle cycle) {
       return _addMonths(currentRenewal, 12);
   }
 }
-// ...
+
+/// Helper to add months while handling month-end edge cases
+DateTime _addMonths(DateTime date, int monthsToAdd) {
+  int nextYear = date.year;
+  int nextMonth = date.month + monthsToAdd;
+  
+  while (nextMonth > 12) {
+    nextMonth -= 12;
+    nextYear++;
+  }
+  
+  // Find the last day of the target month
+  int lastDayOfNextMonth = DateTime(nextYear, nextMonth + 1, 0).day;
+  int nextDay = date.day > lastDayOfNextMonth ? lastDayOfNextMonth : date.day;
+  
+  return DateTime(
+    nextYear,
+    nextMonth,
+    nextDay,
+    date.hour,
+    date.minute,
+    date.second,
+    date.millisecond,
+    date.microsecond,
+  );
+}
+
 /// Get status color based on renewal date
 Color getSubscriptionStatusColor(
   DateTime renewalDate, {
