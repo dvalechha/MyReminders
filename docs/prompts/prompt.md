@@ -1,31 +1,40 @@
-# Refactor Task: Subscription Form Validation Logic
-
-I have updated the requirements for the **Add/Edit Subscription** form based on the reminder settings.
+I need to refactor the `SubscriptionCard` widget to implement specific visual polish and interaction logic.
 
 **Context:**
-The app allows users to select a **Renewal Date + Time** and a **Reminder Offset** (e.g., None, 1 day before, 3 days before).
+This card displays subscription details. We are refining the "Overdue/Renew" experience.
 
-**New Validation Logic:**
-Please write a validation function called `isNotificationValid` that runs whenever the Date, Time, or Reminder fields change.
+Please implement the following changes:
 
-**The Rule:**
-1. **Calculate Effective Notification Time:**
-   * Take the selected `Renewal Date & Time`.
-   * Subtract the selected `Reminder Offset` (e.g., -1 day, -3 days).
-   * *Note: If "Reminder" is "None", the Effective Time is just the Renewal Date itself.*
+### 1. Layout & Visual Polish
+* **Remove Bottom Line:** Remove the red progress/divider line from the bottom of the card. The Left Vertical Bar is sufficient for status indication.
+* **Safety Layout (Left Side):** Wrap the Left Column (Name, Cycle, Due Date) inside an `Expanded` widget. This is critical to prevent the text from pushing the Right Side Action Zone off-screen on small devices.
+* **Alignment:** Ensure the "Due Today/Overdue" text (Left Side) aligns visually with the bottom of the "Renew" button (Right Side).
+* **Right Side Stack:** Ensure the Price and Renew Button are in a `Column` aligned to `CrossAxisAlignment.end` (Price on top, Button below).
 
-2. **Compare vs. Now:**
-   * If the `Effective Notification Time` is in the **past** (relative to `new Date()`), return **FALSE**.
-   * Otherwise, return **TRUE**.
+### 2. Status Logic (UTC Check)
+Determine the status label based on **UTC Date** comparison (ignore time):
+* **Logic:** Compare `renewalDate` (in UTC) vs `DateTime.now()` (in UTC). Strip the time components to compare dates only.
+* **Labels:**
+    * **"Overdue"**: If the renewal date is strictly *before* today (UTC).
+    * **"Due today"**: If the renewal date is *equal* to today (UTC).
 
-**Error Handling:**
-* If the validation fails, block the "Save" button.
-* Display a dynamic error message based on the failure:
-   * If Reminder is None: *"Renewal date cannot be in the past."*
-   * If Reminder is active: *"The reminder time for this date has already passed. Please choose a later date."*
+### 3. The "Renew" Button State Strategy
+Implement a local state (e.g., `bool _isPaid`) to handle the "Renew" interaction.
 
-**Example Scenarios to Handle:**
-* Now is Jan 12, 5:00 PM.
-* User selects Jan 13, 9:00 AM with "1 Day Before".
-* Calculation: Jan 12, 9:00 AM.
-* **Result:** Error (Time is in the past).
+**State A: Idle (Action Required)**
+* **Condition:** `!_isPaid`
+* **Background:** Light Red (`Colors.red.shade50`)
+* **Text/Icon Color:** Dark Red (`Colors.red.shade900`)
+* **Text:** "Renew"
+* **Icon:** `Icons.check_circle_outline` (Hollow)
+* **Action:** On tap, set `_isPaid = true` and trigger the success logic.
+
+**State B: Success (Just Clicked)**
+* **Condition:** `_isPaid`
+* **Background:** Light Green (`Colors.green.shade50`)
+* **Text/Icon Color:** Dark Green (`Colors.green.shade900`)
+* **Text:** "Paid!"
+* **Icon:** `Icons.check_circle` (Solid/Filled)
+* **Action:** Disable tap. (Note: For now, just show this visual state; we will connect the DB logic later).
+
+Please generate the full `build` method for the `SubscriptionCard` widget incorporating these requirements.
