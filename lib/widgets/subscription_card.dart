@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/subscription.dart';
 import '../providers/subscription_provider.dart';
+import '../services/subscription_service.dart';
 import '../utils/subscription_status_helper.dart';
 
 class SubscriptionCard extends StatefulWidget {
@@ -34,36 +35,41 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
     }
   }
 
-  void _handleRenew() {
+  Future<void> _handleRenew() async {
+    // Optimistic UI: Immediately show "Paid!" state
     setState(() {
       _isPaid = true;
     });
+    HapticFeedback.mediumImpact();
     
-    // Trigger success logic
-    // We delay the actual update slightly to let the user see the "Paid!" state
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-      
-      final provider = Provider.of<SubscriptionProvider>(context, listen: false);
-      final nextRenewal = calculateNextRenewal(
-        widget.subscription.renewalDate,
-        widget.subscription.billingCycle,
-      );
-      final updatedSub = widget.subscription.copyWith(
-        renewalDate: nextRenewal,
-      );
-      
-      // We don't want to break the visual state immediately, but the list update might rebuild us.
-      // For now, we just perform the update.
-      provider.updateSubscription(updatedSub);
-      
+    // Call Service to renew
+    final service = SubscriptionService();
+    final result = await service.renewSubscription(widget.subscription.id);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Renewed ${widget.subscription.serviceName}'),
           duration: const Duration(seconds: 2),
         ),
       );
-    });
+      // Trigger provider refresh to keep data in sync
+      // Ideally we would update the local item directly, but a refresh ensures consistency
+      Provider.of<SubscriptionProvider>(context, listen: false).loadSubscriptions();
+    } else {
+      // Rollback on error
+      setState(() {
+        _isPaid = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error renewing: ${result['error']}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override

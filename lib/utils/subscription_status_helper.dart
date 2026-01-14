@@ -74,16 +74,13 @@ Color getSubscriptionStatusColor(
   
   switch (status) {
     case SubscriptionStatus.overdue:
+      return const Color(0xFFE57373); // Red/Terracotta
     case SubscriptionStatus.dueToday:
-      return Colors.red;
+      return Colors.orange; // Amber/Orange
     case SubscriptionStatus.normal:
-      final nowUtc = DateTime.now().toUtc();
-      final renewalUtc = renewalDate.toUtc();
-      final difference = renewalUtc.difference(nowUtc).inDays;
-      if (difference >= 0 && difference <= 7) {
-        return Colors.deepOrange.shade400;
-      }
-      return Colors.greenAccent;
+      // If fairly close but not due today (e.g. tomorrow or within week), keep green/teal but maybe distinct?
+      // Requirement says "Safe/Future: Teal/Green"
+      return Colors.teal;
   }
 }
 

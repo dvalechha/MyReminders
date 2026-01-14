@@ -1,27 +1,24 @@
-**Context:**
-I am working on the "Status Label" logic for my subscription tracker cards.
-Currently, the system uses "Date-Level" comparison (checking only the Day/Month/Year). If the renewal date is today, it simply displays "Due Today," regardless of the specific time.
+I need to refactor the Subscription Card. I want to keep the UI strictly decoupled from the backend logic (Supabase) to ensure future flexibility.
 
-**The Bug:**
-The UI fails to account for the *time* of the renewal.
-* **Example:** If a subscription was due at **2:47 PM** today, and it is currently **2:51 PM** today, the card still says "Due Today."
-* **Reality:** It is technically "Overdue."
+Please implement the following:
 
-**The Requirement:**
-I need to update the status logic to use **Timestamp-Level** granularity.
+### 1. Visuals: "Traffic Light" Indicators
+Update the **vertical left-hand bar** color based on due date:
+* **Overdue:** Red/Terracotta.
+* **Due Today:** Amber/Orange.
+* **Safe/Future:** Teal/Green.
 
-**Please provide the JavaScript/TypeScript logic to implement the following rules:**
+### 2. Logic: Provider-Agnostic "Renew" Feature
+Implement the "Renew" action using a Service/Repository pattern:
 
-1.  **Overdue Check:**
-    * Compare the full `renewal_date` timestamp against `new Date()` (Current Time).
-    * If `renewal_date < now`, the status label must return **"Overdue"** (even if it is the same calendar day).
+* **2.1 Create a Service Method:**
+  * Create (or update) a file named `subscriptionService.js` (or `.ts`).
+  * Add a function `renewSubscription(id)` inside it.
+  * *Only inside this function* should you put the specific Supabase code: `supabase.from('subscriptions')....`.
+  * This function should return a standardized response (e.g., `{ success: true }` or `{ error: ... }`) so the UI doesn't know it's Supabase data.
 
-2.  **Due Today Check:**
-    * If `renewal_date > now` AND the calendar day is the same as today, the status label should return **"Due Today"** (implying due later today).
-
-3.  **Future/Upcoming:**
-    * If the date is in the future (tomorrow onwards), keep existing logic (e.g., "Renews [Date]" or "Renews Tomorrow").
-
-**Tech Stack:**
-* Frontend: [Insert your frontend framework, e.g., React/Next.js]
-* Date Library (Optional): [Mention if you use date-fns, moment, or native JS]
+* **2.2 UI Implementation:**
+  * In the Component, import `renewSubscription` from the service file.
+  * When the button is clicked, call this service function.
+  * **Optimistic UI:** Immediately set `isRenewed = true` and turn the pill **Green**.
+  * **Rollback:** If the service returns an error, revert the pill color and flag.
