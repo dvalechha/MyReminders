@@ -1,31 +1,24 @@
-# Refactor Task: Subscription Form Validation Logic
+I need to refactor the Subscription Card. I want to keep the UI strictly decoupled from the backend logic (Supabase) to ensure future flexibility.
 
-I have updated the requirements for the **Add/Edit Subscription** form based on the reminder settings.
+Please implement the following:
 
-**Context:**
-The app allows users to select a **Renewal Date + Time** and a **Reminder Offset** (e.g., None, 1 day before, 3 days before).
+### 1. Visuals: "Traffic Light" Indicators
+Update the **vertical left-hand bar** color based on due date:
+* **Overdue:** Red/Terracotta.
+* **Due Today:** Amber/Orange.
+* **Safe/Future:** Teal/Green.
 
-**New Validation Logic:**
-Please write a validation function called `isNotificationValid` that runs whenever the Date, Time, or Reminder fields change.
+### 2. Logic: Provider-Agnostic "Renew" Feature
+Implement the "Renew" action using a Service/Repository pattern:
 
-**The Rule:**
-1. **Calculate Effective Notification Time:**
-   * Take the selected `Renewal Date & Time`.
-   * Subtract the selected `Reminder Offset` (e.g., -1 day, -3 days).
-   * *Note: If "Reminder" is "None", the Effective Time is just the Renewal Date itself.*
+* **2.1 Create a Service Method:**
+  * Create (or update) a file named `subscriptionService.js` (or `.ts`).
+  * Add a function `renewSubscription(id)` inside it.
+  * *Only inside this function* should you put the specific Supabase code: `supabase.from('subscriptions')....`.
+  * This function should return a standardized response (e.g., `{ success: true }` or `{ error: ... }`) so the UI doesn't know it's Supabase data.
 
-2. **Compare vs. Now:**
-   * If the `Effective Notification Time` is in the **past** (relative to `new Date()`), return **FALSE**.
-   * Otherwise, return **TRUE**.
-
-**Error Handling:**
-* If the validation fails, block the "Save" button.
-* Display a dynamic error message based on the failure:
-   * If Reminder is None: *"Renewal date cannot be in the past."*
-   * If Reminder is active: *"The reminder time for this date has already passed. Please choose a later date."*
-
-**Example Scenarios to Handle:**
-* Now is Jan 12, 5:00 PM.
-* User selects Jan 13, 9:00 AM with "1 Day Before".
-* Calculation: Jan 12, 9:00 AM.
-* **Result:** Error (Time is in the past).
+* **2.2 UI Implementation:**
+  * In the Component, import `renewSubscription` from the service file.
+  * When the button is clicked, call this service function.
+  * **Optimistic UI:** Immediately set `isRenewed = true` and turn the pill **Green**.
+  * **Rollback:** If the service returns an error, revert the pill color and flag.

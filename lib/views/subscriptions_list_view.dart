@@ -1,17 +1,13 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../providers/subscription_provider.dart';
-import '../providers/navigation_model.dart';
 import '../models/subscription.dart';
-import '../widgets/smart_list_tile.dart';
 import '../widgets/subscription_filter_dialog.dart';
-import '../utils/subscription_status_helper.dart';
+import '../widgets/subscription_card.dart';
 import 'subscription_form_view.dart';
 import 'main_navigation_view.dart';
 
@@ -40,7 +36,7 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
   bool _hasLoaded = false;
   SubscriptionCategory? _filterCategory;
   bool _filterRenewingSoon = false;
-  Set<String> _selectedIds = {};
+  final Set<String> _selectedIds = {};
   
   bool get _isSelectionMode => _selectedIds.isNotEmpty;
   
@@ -162,8 +158,6 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
 
   @override
   Widget build(BuildContext context) {
-    final navigationModel = Provider.of<NavigationModel>(context, listen: false);
-    
     return Consumer<SubscriptionProvider>(
       builder: (context, provider, child) {
         if (provider.isLoading) {
@@ -515,243 +509,83 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
             child: Column(
               children: List.generate(
                 filteredSubscriptions.length,
-                (index) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  child: _buildSubscriptionCard(context, filteredSubscriptions[index], provider),
-                ),
+                (index) {
+                  final subscription = filteredSubscriptions[index];
+                  final isSelected = _selectedIds.contains(subscription.id);
+
+                  final card = SubscriptionCard(
+                    subscription: subscription,
+                    isSelected: isSelected,
+                    onTap: () {
+                      if (_isSelectionMode) {
+                        _toggleSelection(subscription.id);
+                      } else {
+                        MainNavigationKeys.homeNavigatorKey.currentState?.push(
+                          MaterialPageRoute(
+                            builder: (context) => SubscriptionFormView(
+                              subscription: subscription,
+                            ),
+                            settings: const RouteSettings(name: 'SubscriptionFormView'),
+                          ),
+                        );
+                      }
+                    },
+                    onLongPress: () {
+                      if (!_isSelectionMode) {
+                        HapticFeedback.lightImpact();
+                        _toggleSelection(subscription.id);
+                      }
+                    },
+                  );
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    child: _isSelectionMode
+                        ? card
+                        : Dismissible(
+                            key: Key(subscription.id),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Icon(Icons.delete, color: Colors.white),
+                            ),
+                            confirmDismiss: (direction) async {
+                              return await showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Delete Subscription'),
+                                  content: Text(
+                                      'Are you sure you want to delete ${subscription.serviceName}?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, true),
+                                      child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            onDismissed: (direction) {
+                              provider.deleteSubscription(subscription.id);
+                            },
+                            child: card,
+                          ),
+                  );
+                },
               ),
             ),
           ),
       ],
     );
-  }
-
-  Widget _buildSubscriptionCard(
-    BuildContext context,
-    Subscription subscription,
-    SubscriptionProvider provider,
-  ) {
-    final statusColor = getSubscriptionStatusColor(
-      subscription.renewalDate,
-      billingCycle: subscription.billingCycle,
-    );
-    final progress = getBillingCycleProgress(
-      renewalDate: subscription.renewalDate,
-      billingCycle: subscription.billingCycle,
-    );
-    final firstLetter = subscription.serviceName.isNotEmpty
-        ? subscription.serviceName[0].toUpperCase()
-        : '?';
-    final isSelected = _selectedIds.contains(subscription.id);
-    final brandBlue = Colors.blue; // Using Colors.blue as brand blue
-
-    void handleTap() {
-      if (_isSelectionMode) {
-        // Toggle selection
-        _toggleSelection(subscription.id);
-      } else {
-        // Navigate to details
-        MainNavigationKeys.homeNavigatorKey.currentState?.push(
-          MaterialPageRoute(
-            builder: (context) => SubscriptionFormView(
-              subscription: subscription,
-            ),
-            settings: const RouteSettings(name: 'SubscriptionFormView'),
-          ),
-        );
-      }
-    }
-
-    void handleLongPress() {
-      if (!_isSelectionMode) {
-        // Enter selection mode
-        HapticFeedback.lightImpact();
-        _toggleSelection(subscription.id);
-      }
-    }
-
-    final cardContent = Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isSelected ? Colors.blue.shade50 : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: isSelected
-            ? Border.all(color: brandBlue, width: 2)
-            : null,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Status strip (only show if not selected)
-          if (!isSelected)
-            Container(
-              width: 6,
-              decoration: BoxDecoration(
-                color: statusColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  bottomLeft: Radius.circular(16),
-                ),
-              ),
-            ),
-          if (!isSelected) const SizedBox(width: 4),
-          // Main content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Leading: Avatar or Check icon
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: isSelected
-                          ? CircleAvatar(
-                              key: const ValueKey('check'),
-                              radius: 24,
-                              backgroundColor: brandBlue,
-                              child: const Icon(
-                                Icons.check,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                            )
-                          : Container(
-                              key: const ValueKey('avatar'),
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  firstLetter,
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: statusColor,
-                                  ),
-                                ),
-                              ),
-                            ),
-                    ),
-                    const SizedBox(width: 16),
-                    // Center: Subscription Name and Renewal Text
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Row 1: Subscription Name (Semi-Bold)
-                          Text(
-                            subscription.serviceName,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          // Row 2: Renewal text
-                          const SizedBox(height: 6),
-                          Text(
-                            getRenewalText(
-                              subscription.renewalDate,
-                              billingCycle: subscription.billingCycle,
-                            ),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[700],
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Trailing: Price (Bold, vertically aligned with avatar center)
-                    Text(
-                      '\$${subscription.amount.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-                // Bottom Accessory: LinearProgressIndicator (only show if not selected)
-                if (!isSelected) ...[
-                  const SizedBox(height: 12),
-                  LinearProgressIndicator(
-                    value: progress,
-                    backgroundColor: Colors.grey.withOpacity(0.2),
-                    valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-                    minHeight: 3,
-                    borderRadius: BorderRadius.circular(1.5),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-
-    // Wrap in GestureDetector for long press and tap handling
-    final interactiveCard = GestureDetector(
-      onTap: handleTap,
-      onLongPress: handleLongPress,
-      child: cardContent,
-    );
-
-    // Wrap in Dismissible for swipe-to-delete (only when not in selection mode)
-    if (_isSelectionMode) {
-      return interactiveCard;
-    } else {
-      return Dismissible(
-        key: Key(subscription.id),
-        direction: DismissDirection.endToStart,
-        background: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 20),
-          decoration: BoxDecoration(
-            color: Colors.red,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Icon(Icons.delete, color: Colors.white),
-        ),
-        confirmDismiss: (direction) async {
-          return await showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Delete Subscription'),
-              content: Text(
-                  'Are you sure you want to delete ${subscription.serviceName}?'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                ),
-              ],
-            ),
-          );
-        },
-        onDismissed: (direction) {
-          provider.deleteSubscription(subscription.id);
-        },
-        child: interactiveCard,
-      );
-    }
   }
 
   Widget _buildBarChart(List<MonthlySpend> monthlyData, double totalMonthlySpend) {

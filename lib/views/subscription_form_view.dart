@@ -122,8 +122,8 @@ class _SubscriptionFormViewState extends State<SubscriptionFormView> {
     _amountController.text = sub.amount.toStringAsFixed(2);
     _selectedCategory = sub.category;
     _selectedCurrency = sub.currency;
-    _selectedRenewalDate = sub.renewalDate;
-    _selectedRenewalTime = TimeOfDay.fromDateTime(sub.renewalDate);
+    _selectedRenewalDate = sub.renewalDate.toLocal();
+    _selectedRenewalTime = TimeOfDay.fromDateTime(sub.renewalDate.toLocal());
     _selectedBillingCycle = sub.billingCycle;
     _selectedReminder = sub.reminder;
     _customReminderDays = sub.reminderDaysBefore;

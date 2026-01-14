@@ -59,7 +59,7 @@ class _TaskFormViewState extends State<TaskFormView> {
     final task = widget.task!;
     _titleController.text = task.title;
     _notesController.text = task.notes ?? '';
-    _selectedDueDate = task.dueDate;
+    _selectedDueDate = task.dueDate?.toLocal();
     _selectedPriority = task.priority;
     _selectedReminder = task.reminderOffset;
   }

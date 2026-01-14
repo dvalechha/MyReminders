@@ -16,7 +16,7 @@ class MockSubscriptionProvider extends ChangeNotifier implements SubscriptionPro
   double totalMonthlySpend = 0.0;
 
   @override
-  Future<void> loadSubscriptions() async {}
+  Future<void> loadSubscriptions({bool forceRefresh = false}) async {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

@@ -188,7 +188,7 @@ class Subscription {
       'title': serviceName,
       'amount': amount,
       'currency': currency.value,
-      'renewal_date': renewalDate.toIso8601String(), // TIMESTAMPTZ format
+      'renewal_date': renewalDate.toUtc().toIso8601String(), // TIMESTAMPTZ format (Strict UTC)
       'billing_cycle': billingCycle.value.toLowerCase(),
       'reminder_days_before': reminderDaysBefore,
       'payment_last4': paymentMethod?.length == 4 ? paymentMethod : null,

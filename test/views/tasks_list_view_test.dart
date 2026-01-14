@@ -14,7 +14,7 @@ class MockTaskProvider extends ChangeNotifier implements TaskProvider {
   List<Task> tasks = [];
 
   @override
-  Future<void> loadTasks() async {}
+  Future<void> loadTasks({bool forceRefresh = false}) async {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

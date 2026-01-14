@@ -126,7 +126,7 @@ class Task {
       'user_id': userId,
       'category_id': categoryId,
       'title': title,
-      'due_date': dueDate?.toIso8601String(),
+      'due_date': dueDate?.toUtc().toIso8601String(),
       'priority': priority?.value.toLowerCase(),
       'notes': notes,
       'reminder_offset_minutes': reminderOffset.minutes,

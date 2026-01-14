@@ -109,7 +109,7 @@ class Appointment {
       'user_id': userId,
       'category_id': categoryId,
       'title': title,
-      'start_time': dateTime.toIso8601String(),
+      'start_time': dateTime.toUtc().toIso8601String(),
       'location': location,
       'notes': notes,
       'reminder_offset_minutes': reminderOffset.minutes,

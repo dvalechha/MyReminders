@@ -14,7 +14,7 @@ class MockAppointmentProvider extends ChangeNotifier implements AppointmentProvi
   List<Appointment> appointments = [];
 
   @override
-  Future<void> loadAppointments() async {}
+  Future<void> loadAppointments({bool forceRefresh = false}) async {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

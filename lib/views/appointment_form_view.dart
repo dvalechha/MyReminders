@@ -65,7 +65,7 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
     _titleController.text = apt.title;
     _locationController.text = apt.location ?? '';
     _notesController.text = apt.notes ?? '';
-    _selectedDateTime = apt.dateTime;
+    _selectedDateTime = apt.dateTime.toLocal();
     _selectedReminder = apt.reminderOffset;
   }
 
