@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/subscription.dart';
 import '../providers/subscription_provider.dart';
-import '../services/subscription_service.dart';
 import '../utils/subscription_status_helper.dart';
 
 class SubscriptionCard extends StatefulWidget {
@@ -42,30 +41,30 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
     });
     HapticFeedback.mediumImpact();
     
-    // Call Service to renew
-    final service = SubscriptionService();
-    final result = await service.renewSubscription(widget.subscription.id);
+    try {
+      await context.read<SubscriptionProvider>().renewSubscription(
+        widget.subscription.id, 
+        widget.subscription
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (result['success'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Renewed ${widget.subscription.serviceName}'),
           duration: const Duration(seconds: 2),
         ),
       );
-      // Trigger provider refresh to keep data in sync
-      // Ideally we would update the local item directly, but a refresh ensures consistency
-      Provider.of<SubscriptionProvider>(context, listen: false).loadSubscriptions();
-    } else {
+    } catch (e) {
+      if (!mounted) return;
+      
       // Rollback on error
       setState(() {
         _isPaid = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error renewing: ${result['error']}'),
+          content: Text('Error renewing: $e'),
           backgroundColor: Colors.red,
         ),
       );
