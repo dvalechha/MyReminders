@@ -6,6 +6,7 @@ import '../services/notification_service.dart';
 import '../services/notification_preferences_service.dart';
 import '../repositories/subscription_repository.dart';
 import '../repositories/category_repository.dart';
+import '../services/subscription_service.dart';
 import '../models/category.dart' as models;
 
 class SubscriptionProvider with ChangeNotifier {
@@ -129,6 +130,64 @@ class SubscriptionProvider with ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // Renew subscription
+  Future<void> renewSubscription(String id, Subscription currentSubscription) async {
+    try {
+      final SubscriptionService service = SubscriptionService();
+      
+      // 1. Calculate
+      final newRenewalDate = service.calculateNextRenewalDate(
+        currentSubscription.renewalDate,
+        currentSubscription.billingCycle,
+      );
+
+      final updatedSub = currentSubscription.copyWith(
+         renewalDate: newRenewalDate,
+         isRenewed: true,
+      );
+
+      // 2. Supabase Update
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+         final updates = {
+           'renewal_date': newRenewalDate.toUtc().toIso8601String(),
+           'is_renewed': true,
+         };
+         await _supabaseRepository.update(id, updates);
+      }
+
+      // Update local DB
+      try {
+        await _dbHelper.updateSubscription(updatedSub);
+      } catch (e) {
+        debugPrint('Warning: Failed to update local subscription renewal: $e');
+      }
+
+      // 3. State Refresh (Optimistic)
+      final index = _subscriptions.indexWhere((s) => s.id == id);
+      if (index != -1) {
+        _subscriptions[index] = updatedSub;
+        notifyListeners();
+      }
+      
+      // Reschedule notification
+      if (updatedSub.notificationId != null) {
+         await _notificationService.cancelReminder(updatedSub.notificationId!);
+         if (updatedSub.reminderType != 'none' && updatedSub.reminderDaysBefore > 0) {
+             await _notificationService.scheduleReminder(
+               subscription: updatedSub,
+               renewalDate: newRenewalDate,
+               reminderDaysBefore: updatedSub.reminderDaysBefore,
+               notificationId: updatedSub.notificationId!,
+             );
+         }
+      }
+    } catch (e) {
+      debugPrint('Error renewing subscription: $e');
+      rethrow;
     }
   }
 

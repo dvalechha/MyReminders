@@ -44,6 +44,9 @@ This document captures ongoing ideas, decisions, and implementation status for t
 - `ON DELETE CASCADE` for automatic cleanup when user is deleted
 - Indexes for performance on common queries
 - Automatic `updated_at` triggers
+- **Strict UTC Handling**:
+  - `renewal_date` uses `TIMESTAMPTZ` for precise timing.
+  - All date/time fields (`start_time`, `due_date`, etc.) are stored in strict UTC.
 
 #### 4. UI Components
 - **Auth Gate**: Central routing based on auth state (login, email verification, password reset, main app)
@@ -53,6 +56,11 @@ This document captures ongoing ideas, decisions, and implementation status for t
 - **Omnibox**: Natural language command input with intent detection
 - **Navigation Drawer**: Access to all app sections
 - **Settings View**: Account management, password change, delete account
+- **Subscription Card**:
+  - Refactored into standalone widget `lib/widgets/subscription_card.dart`.
+  - **Traffic Light Indicators**: Visual status bar (Red=Overdue, Orange=Due Today, Teal=Safe).
+  - **Optimistic UI**: Immediate "Paid!" feedback on renewal.
+  - **Status Logic**: Granular timestamp-level comparison (UTC) for accurate "Overdue" detection.
 
 #### 5. Natural Language Processing
 - **Intent Parser Service**: Rule-based extraction of:
@@ -74,6 +82,7 @@ This document captures ongoing ideas, decisions, and implementation status for t
 - **Local Cache Service**: Local data persistence
 - **State Reset Service**: Reset all providers on logout
 - **Notification Service**: Local notifications (scaffold)
+- **Subscription Service**: Provider-agnostic service for renewal logic (`renewSubscription`).
 
 ---
 
@@ -110,13 +119,15 @@ lib/
 │   ├── logout_service.dart
 │   ├── local_cache_service.dart
 │   ├── state_reset_service.dart
-│   └── notification_service.dart
+│   ├── notification_service.dart
+│   └── subscription_service.dart    # Business logic for subscription actions
 ├── utils/
 │   ├── auth_error_helper.dart       # User-friendly error messages
 │   ├── environment_config.dart      # Dev/Prod environment handling
 │   ├── natural_language_parser.dart
 │   ├── snackbar.dart
-│   └── supabase_user_helper.dart
+│   ├── supabase_user_helper.dart
+│   └── subscription_status_helper.dart # UTC status & renewal logic
 ├── views/
 │   ├── login_screen.dart
 │   ├── signup_screen.dart
@@ -141,6 +152,7 @@ lib/
     ├── omnibox.dart                # Command input
     ├── todays_snapshot_view.dart   # Dashboard widget
     ├── app_navigation_drawer.dart
+    ├── subscription_card.dart      # Enhanced subscription item
     └── ...
 ```
 
@@ -163,8 +175,11 @@ supabase/
 ### Tables
 1. **category** - Shared categories (read-only for users)
 2. **subscriptions** - User subscriptions with `user_id` FK
+   - `renewal_date`: TIMESTAMPTZ (Strict UTC)
 3. **appointments** - User appointments with `user_id` FK
+   - `start_time`: TIMESTAMPTZ (Strict UTC)
 4. **tasks** - User tasks with `user_id` FK
+   - `due_date`: TIMESTAMPTZ (Strict UTC)
 5. **user_profile** - User display info, FK to `auth.users`
 
 ### Key Features
@@ -174,30 +189,31 @@ supabase/
 
 ---
 
-## Recent Session Work (Authentication Improvements)
+## Recent Session Work
 
-### Issues Fixed
-1. **Account Deletion Bug**: Related data (subscriptions, tasks, appointments) wasn't being deleted. Fixed by explicit deletion in edge function before user deletion.
+### 1. Subscription Card Refactoring
+- **Separation of Concerns**: Extracted UI into `SubscriptionCard` widget.
+- **Visuals**: Implemented "Traffic Light" vertical bar:
+  - **Red/Terracotta**: Overdue
+  - **Amber/Orange**: Due Today
+  - **Teal/Green**: Safe/Future
+- **Layout**: Optimized layout with `Column` for price/button and `Expanded` for text safety.
 
-2. **GitHub Secret Leak**: `node_modules/` was tracked in git. Added to `.gitignore` and removed from history.
+### 2. Strict Timezone Handling
+- **Problem**: Mismatch between Local Time input and Database storage causing incorrect "Due Today/Overdue" labels.
+- **Solution**: Enforced strict UTC storage and Local display.
+  - **Write**: Models convert local `DateTime` to strict UTC ISO string (`.toUtc().toIso8601String()`) before saving.
+  - **Read**: Form Views convert DB UTC dates back to Local Time (`.toLocal()`) for correct display in pickers.
+  - **Status Logic**: `subscription_status_helper.dart` uses timestamp-level UTC comparisons against `DateTime.now().toUtc()` for accurate status.
 
-3. **Technical Error Messages**: Raw exception messages shown to users. Created `AuthErrorHelper` utility for user-friendly messages.
+### 3. Renewal Logic
+- **Service Pattern**: Created `SubscriptionService` to handle business logic for renewals.
+- **Provider-Agnostic**: UI calls service directly, maintaining decoupling.
+- **Optimistic UI**: "Renew" button immediately turns Green ("Paid!") on tap, rolling back only on error.
 
-4. **Password Reset Deep Link**: Clicking reset link didn't navigate to reset screen. Implemented:
-   - SharedPreferences flags to track password reset initiation
-   - Detection in `onAuthStateChange` listener
-   - Detection on app resume via `didChangeAppLifecycleState`
-   - Dedicated `ResetPasswordScreen` with back navigation protection
-
-5. **Login After Password Reset**: After resetting password, logging in redirected back to reset screen. Fixed by clearing local flags when provider flag is false.
-
-6. **Unverified Email Login**: Showed generic "invalid credentials" for unverified users. Updated `AuthErrorHelper` to detect and show specific message.
-
-7. **Auto-Login After Email Verification (Security)**: Users were auto-logged in after clicking email confirmation. Now:
-   - Tracks `just_signed_up` and `signup_email` flags
-   - Detects email verification via `onAuthStateChange` and app resume
-   - Signs out user and sets `email_verified_success` flag
-   - Shows success message on login screen requiring re-login
+### 4. Build Fixes
+- Fixed missing `_addMonths` helper.
+- Updated Test Mocks to match new Provider signatures (`forceRefresh`).
 
 ---
 
@@ -270,7 +286,7 @@ flutter run --dart-define=ENV=prod
 
 ## Git Branches
 - `main` - Production-ready code
-- `feature/settings-menu-DV` - Current working branch with authentication improvements
+- `feature/renew-list-screens-DV` - Current working branch with Subscription Card and Timezone improvements
 
 ---
 

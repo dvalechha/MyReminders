@@ -88,6 +88,7 @@ class Subscription {
   final String? notificationId;
   final String? notes;
   final String? paymentMethod;
+  final bool isRenewed;
 
   Subscription({
     String? id,
@@ -103,6 +104,7 @@ class Subscription {
     this.notificationId,
     this.notes,
     this.paymentMethod,
+    this.isRenewed = false,
   }) : id = id ?? const Uuid().v4();
 
   // Convert to Map for database storage
@@ -121,6 +123,7 @@ class Subscription {
       'notificationId': notificationId,
       'notes': notes,
       'paymentMethod': paymentMethod,
+      'isRenewed': isRenewed ? 1 : 0,
     };
   }
 
@@ -140,6 +143,7 @@ class Subscription {
       notificationId: map['notificationId'] as String?,
       notes: map['notes'] as String?,
       paymentMethod: map['paymentMethod'] as String?,
+      isRenewed: (map['isRenewed'] as int? ?? 0) == 1,
     );
   }
 
@@ -158,6 +162,7 @@ class Subscription {
     String? notificationId,
     String? notes,
     String? paymentMethod,
+    bool? isRenewed,
   }) {
     return Subscription(
       id: id ?? this.id,
@@ -173,6 +178,7 @@ class Subscription {
       notificationId: notificationId ?? this.notificationId,
       notes: notes ?? this.notes,
       paymentMethod: paymentMethod ?? this.paymentMethod,
+      isRenewed: isRenewed ?? this.isRenewed,
     );
   }
 
@@ -193,6 +199,7 @@ class Subscription {
       'reminder_days_before': reminderDaysBefore,
       'payment_last4': paymentMethod?.length == 4 ? paymentMethod : null,
       'notes': notes,
+      'is_renewed': isRenewed,
     };
   }
 
@@ -217,6 +224,7 @@ class Subscription {
       reminderDaysBefore: map['reminder_days_before'] as int? ?? 0,
       notes: map['notes'] as String?,
       paymentMethod: map['payment_last4'] as String?,
+      isRenewed: map['is_renewed'] as bool? ?? false,
     );
   }
 }

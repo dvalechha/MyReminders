@@ -22,7 +22,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -43,7 +43,8 @@ class DatabaseHelper {
         reminderDaysBefore INTEGER NOT NULL,
         notificationId TEXT,
         notes TEXT,
-        paymentMethod TEXT
+        paymentMethod TEXT,
+        isRenewed INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -115,6 +116,15 @@ class DatabaseHelper {
       } catch (e) {
         // Column might already exist, ignore error
         print('Note: isCompleted column may already exist: $e');
+      }
+    }
+    
+    if (oldVersion < 4) {
+      // Add isRenewed column to subscriptions table
+      try {
+        await db.execute('ALTER TABLE subscriptions ADD COLUMN isRenewed INTEGER NOT NULL DEFAULT 0');
+      } catch (e) {
+        print('Note: isRenewed column may already exist: $e');
       }
     }
   }
