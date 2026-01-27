@@ -13,26 +13,34 @@ class SmartListTile extends StatelessWidget {
   final Widget child;
   final Color statusColor;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final EdgeInsetsGeometry? padding;
   final List<BoxShadow>? boxShadow;
+  final bool isSelected;
 
   const SmartListTile({
     super.key,
     required this.child,
     required this.statusColor,
     this.onTap,
+    this.onLongPress,
     this.padding,
     this.boxShadow,
+    this.isSelected = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final isIOS = Platform.isIOS;
+    const brandBlue = Color(0xFF2D62ED);
+    const selectedBg = Color(0xFFF0F4FF);
+
     final cardContent = Container(
       padding: padding ?? const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isSelected ? selectedBg : Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: isSelected ? Border.all(color: brandBlue, width: 1.5) : null,
         boxShadow: boxShadow ?? [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -62,11 +70,12 @@ class SmartListTile extends StatelessWidget {
     );
 
     // Platform-specific tap feedback
-    if (onTap != null) {
+    if (onTap != null || onLongPress != null) {
       if (isIOS) {
         // iOS: GestureDetector with opacity feedback on tap
         return _IOSCard(
-          onTap: onTap!,
+          onTap: onTap,
+          onLongPress: onLongPress,
           child: cardContent,
         );
       } else {
@@ -75,6 +84,7 @@ class SmartListTile extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
+            onLongPress: onLongPress,
             borderRadius: BorderRadius.circular(16),
             child: cardContent,
           ),
@@ -88,11 +98,13 @@ class SmartListTile extends StatelessWidget {
 
 /// iOS-specific card with opacity feedback on tap
 class _IOSCard extends StatefulWidget {
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final Widget child;
 
   const _IOSCard({
-    required this.onTap,
+    this.onTap,
+    this.onLongPress,
     required this.child,
   });
 
@@ -111,11 +123,12 @@ class _IOSCardState extends State<_IOSCard> {
       },
       onTapUp: (_) {
         setState(() => _opacity = 1.0);
-        widget.onTap();
+        widget.onTap?.call();
       },
       onTapCancel: () {
         setState(() => _opacity = 1.0);
       },
+      onLongPress: widget.onLongPress,
       child: AnimatedOpacity(
         opacity: _opacity,
         duration: const Duration(milliseconds: 100),

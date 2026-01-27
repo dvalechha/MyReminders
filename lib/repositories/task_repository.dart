@@ -15,6 +15,7 @@ class TaskRepository {
           .from('tasks')
           .select()
           .eq('user_id', userId)
+          .order('is_completed', ascending: true) // Sort active first
           .order('due_date', ascending: true);
 
       return List<Map<String, dynamic>>.from(response);
@@ -90,6 +91,21 @@ class TaskRepository {
           .eq('user_id', userId);
     } catch (e) {
       throw Exception('Failed to delete task: $e');
+    }
+  }
+
+  /// Delete multiple tasks by ID
+  Future<void> deleteIds(List<String> ids) async {
+    if (ids.isEmpty) return;
+    try {
+      final userId = SupabaseUserHelper.getCurrentUserIdOrThrow();
+      await _client
+          .from('tasks')
+          .delete()
+          .inFilter('id', ids)
+          .eq('user_id', userId);
+    } catch (e) {
+      throw Exception('Failed to delete tasks: $e');
     }
   }
 }

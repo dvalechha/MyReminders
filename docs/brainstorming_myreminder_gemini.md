@@ -20,6 +20,7 @@ We moved away from standard Material Design to a custom, premium aesthetic.
     * **Fields:** Filled `Colors.grey[100]` containers with no visible border strokes.
     * **Labels:** Located **outside and above** the field (bold, small text) for better scannability.
     * **Radius:** `BorderRadius.circular(12)` for inputs.
+    * **ModernFormField:** A reusable widget encapsulating this style.
 
 ---
 
@@ -28,44 +29,65 @@ We moved away from standard Material Design to a custom, premium aesthetic.
 ### A. Dashboard (Main Screen)
 * **Header:** "Total Monthly Spend" with a large, hero-sized number.
 * **Bar Chart Visualization:**
-    * **Logic:** Dynamic Y-Axis scaling.
-        * If Total < $100, use intervals of 10 or 20.
-        * If Total > $100, use intervals of 50 or 100.
-    * **Visuals:** Clean grid lines, no overlapping labels, and a visual "Max Height" cap to prevent the bar from looking small.
+    * **Logic:** Dynamic Y-Axis scaling based on spend.
+    * **Visuals:** Clean grid lines, no overlapping labels.
 * **Subscription List:**
     * **Squircle Icons:** Initials on a soft colored background.
-    * **Progress Track:** A subtle grey line behind the colored urgency bar (Orange/Green) to indicate time passed vs. time remaining.
-    * **Summary Widget:** A compact "Today's Snapshot" card showing tasks due today (with "Today" highlighted in Orange).
+    * **Progress Track:** A subtle grey line behind the colored urgency bar.
+* **Unified Agenda View:**
+    * A consolidated list of subscriptions, appointments, and tasks sorted chronologically.
+    * **Empty State:** Custom `EmptyStateView` with inviting graphics when no items are scheduled.
 
-### B. Add Subscription Flow
-* **Form Layout:** Grouped into white "Cards" (Details, Renewal, Additional Info) rather than a long, flat list.
-* **UX Polish:**
-    * **Keyboard:** "Next" action jumps to the next text field (skipping dropdowns) to maintain flow.
-    * **Capitalization:** Auto-capitalizes sentences for names.
-    * **Payment Masking:** Uses `prefixText: 'XXXX-XXXX-XXXX-  '` so users only type the last 4 digits securely.
-    * **Popups:** Custom `ThemeData` applied to Date Pickers and Dropdowns to match the Brand Blue and rounded corners, removing default Material styling.
+### B. Add/Edit Forms (Refactored)
+* **Subscription Form:**
+    * Grouped into "Essentials", "Timing", and "Details" cards.
+    * Uses `ModernFormField` for consistent input styling.
+* **Appointment Form:**
+    * Grouped into "Event Details", "Timing" (Date/Time pickers), and "Notes".
+    * Uses `ModernFormField`.
+* **Task Form:**
+    * Grouped into "Task Core" (Title, Priority), "Execution" (Due Date, Reminder), and "Context" (Notes).
+    * Uses `ModernFormField`.
 
-### C. Upcoming Agenda
-* **Purpose:** A read-only timeline of upcoming payments.
-* **Design:**
-    * List of expansive cards showing detailed cost, cycle, and renewal date.
-    * **Date formatting:** `MMM d` (e.g., "Jan 10") with "Today" highlighted in Orange.
-    * **Consistency:** The "View All" button on the Dashboard links here.
+### C. List Views (Refactored)
+* **Features:**
+    * **Multi-Selection:** Long-press to enter selection mode, allowing batch deletion.
+    * **Selection App Bar:** Custom app bar showing count and actions (Clear, Delete).
+    * **Optimistic UI:** Immediate feedback for add, update, delete, and completion toggle.
+    * **Completion Logic:** Active items shown by default; completed items filtered out (can be toggled).
+* **Subscription List:**
+    * Shows renewal status with traffic light colors.
+* **Appointment List:**
+    * Grouped by date (Today, Tomorrow, Specific Date).
+    * Left-aligned time display.
+    * "Mark Finished" button.
+* **Task List:**
+    * Leading checkbox for completion.
+    * Strikethrough for completed items.
 
 ---
 
 ## 3. Technical Implementation Details
-* **State Management:** (Implied local state/setState for UI iteration, moving toward provider/bloc as needed).
-* **Data Models:**
-    * `Subscription` object likely contains: `name`, `amount`, `currency`, `renewalDate`, `cycle` (Monthly/Yearly), `reminderSetting`, `notes`, `cardLast4`.
-* **Theming:**
-    * Global `ThemeData` overrides for `datePickerTheme` and `popupMenuTheme` to ensure consistency across all modals.
+* **State Management:** Provider pattern with `ChangeNotifier` for all core data models.
+* **Data Persistence:**
+    * **Supabase:** Remote PostgreSQL database with RLS.
+    * **SQLite:** Local offline cache for robust performance.
+    * **Optimistic Updates:** UI updates immediately; background sync handles remote/local DBs. Rollbacks on error.
+* **Authentication:** Supabase Auth (Email/Password, Google).
+* **Notifications:** Local notifications for reminders.
 
 ---
 
 ## 4. Current Status
-* **Completed:** Visual Polish, Input UX, Chart Scaling, Navigation Flow (Home <-> Agenda).
+* **Completed:**
+    * Visual Polish (Modern Soft design applied to all forms and lists).
+    * Form Refactoring (Grouped cards, consistent inputs).
+    * Multi-Selection & Batch Deletion.
+    * Task/Appointment Completion Logic.
+    * Empty States.
+    * Logout Bug Fix (Clean navigation stack reset).
+    * Appointment "Reappearing" Bug Fix (Optimistic update logic correction).
 * **Pending / Next Up:**
     * **"List Subscription" Feature:** (User is currently brainstorming this).
-    * **Edit Flow:** (Planned to reuse Add Subscription UI).
-    * **Empty States:** Need designs for 0 data.
+    * **Recurring Appointments/Tasks:** Advanced recurrence logic.
+    * **Calendar Sync:** Integration with device calendar.

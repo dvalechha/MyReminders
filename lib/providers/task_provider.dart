@@ -18,9 +18,77 @@ class TaskProvider with ChangeNotifier {
 
   List<Task> _tasks = [];
   bool _isLoading = false;
+  final Set<String> _selectedIds = {};
 
   List<Task> get tasks => _tasks;
+  
+  // New getters for active/completed items
+  List<Task> get activeItems => _tasks.where((t) => !t.isCompleted).toList();
+  List<Task> get completedItems => _tasks.where((t) => t.isCompleted).toList();
+  
   bool get isLoading => _isLoading;
+  bool get isSelectionMode => _selectedIds.isNotEmpty;
+  Set<String> get selectedIds => _selectedIds;
+
+  Future<void> toggleCompletion(String id, bool status) async {
+    try {
+      final task = _tasks.firstWhere((t) => t.id == id);
+      final updatedTask = task.copyWith(isCompleted: status);
+      
+      // Optimistic Update
+      final index = _tasks.indexWhere((t) => t.id == id);
+      if (index != -1) {
+        _tasks[index] = updatedTask;
+        notifyListeners();
+      }
+      
+      // Update DB via updateTask (which handles remote/local sync)
+      await updateTask(updatedTask);
+    } catch (e) {
+      debugPrint('Error toggling task completion: $e');
+    }
+  }
+
+  void toggleSelection(String id) {
+    if (_selectedIds.contains(id)) {
+      _selectedIds.remove(id);
+    } else {
+      _selectedIds.add(id);
+    }
+    notifyListeners();
+  }
+
+  void clearSelection() {
+    _selectedIds.clear();
+    notifyListeners();
+  }
+
+  Future<void> deleteSelected() async {
+    if (_selectedIds.isEmpty) return;
+
+    final idsToDelete = _selectedIds.toList();
+    // Optimistic Update: Remove from local list immediately
+    _tasks.removeWhere((t) => idsToDelete.contains(t.id));
+    // Clear selection so UI exits selection mode
+    _selectedIds.clear();
+    notifyListeners();
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await _supabaseRepository.deleteIds(idsToDelete);
+      }
+      
+      // Delete from local DB
+      for (final id in idsToDelete) {
+        await _dbHelper.deleteTask(id);
+      }
+    } catch (e) {
+      debugPrint('Error deleting selected tasks: $e');
+      await loadTasks(forceRefresh: true);
+      rethrow;
+    }
+  }
 
   TaskProvider() {
     // Defer initialization to avoid blocking app startup

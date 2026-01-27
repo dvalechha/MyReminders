@@ -30,6 +30,7 @@ class Appointment {
   final ReminderOffset reminderOffset;
   final String? notificationId;
   final DateTime createdDate;
+  final bool isCompleted;
 
   Appointment({
     String? id,
@@ -41,6 +42,7 @@ class Appointment {
     this.reminderOffset = ReminderOffset.none,
     this.notificationId,
     DateTime? createdDate,
+    this.isCompleted = false,
   })  : id = id ?? const Uuid().v4(),
         createdDate = createdDate ?? DateTime.now();
 
@@ -55,10 +57,20 @@ class Appointment {
       'reminderOffset': reminderOffset.minutes,
       'notificationId': notificationId,
       'createdDate': createdDate.toIso8601String(),
+      'isCompleted': isCompleted ? 1 : 0,
     };
   }
 
   factory Appointment.fromMap(Map<String, dynamic> map) {
+    bool isCompleted = false;
+    if (map['isCompleted'] != null) {
+      if (map['isCompleted'] is bool) {
+        isCompleted = map['isCompleted'] as bool;
+      } else if (map['isCompleted'] is int) {
+        isCompleted = (map['isCompleted'] as int) != 0;
+      }
+    }
+
     return Appointment(
       id: map['id'] as String,
       title: map['title'] as String,
@@ -72,6 +84,7 @@ class Appointment {
       ),
       notificationId: map['notificationId'] as String?,
       createdDate: DateTime.parse(map['createdDate'] as String),
+      isCompleted: isCompleted,
     );
   }
 
@@ -85,6 +98,7 @@ class Appointment {
     ReminderOffset? reminderOffset,
     String? notificationId,
     DateTime? createdDate,
+    bool? isCompleted,
   }) {
     return Appointment(
       id: id ?? this.id,
@@ -96,6 +110,7 @@ class Appointment {
       reminderOffset: reminderOffset ?? this.reminderOffset,
       notificationId: notificationId ?? this.notificationId,
       createdDate: createdDate ?? this.createdDate,
+      isCompleted: isCompleted ?? this.isCompleted,
     );
   }
 
@@ -113,6 +128,7 @@ class Appointment {
       'location': location,
       'notes': notes,
       'reminder_offset_minutes': reminderOffset.minutes,
+      'is_completed': isCompleted,
     };
   }
 
@@ -130,6 +146,7 @@ class Appointment {
         orElse: () => ReminderOffset.none,
       ),
       createdDate: DateTime.parse(map['created_at'] as String),
+      isCompleted: map['is_completed'] as bool? ?? false,
     );
   }
 }

@@ -17,9 +17,75 @@ class AppointmentProvider with ChangeNotifier {
 
   List<Appointment> _appointments = [];
   bool _isLoading = false;
+  final Set<String> _selectedIds = {};
 
   List<Appointment> get appointments => _appointments;
+  
+  List<Appointment> get activeItems => _appointments.where((a) => !a.isCompleted).toList();
+  List<Appointment> get completedItems => _appointments.where((a) => a.isCompleted).toList();
+  
   bool get isLoading => _isLoading;
+  bool get isSelectionMode => _selectedIds.isNotEmpty;
+  Set<String> get selectedIds => _selectedIds;
+
+  Future<void> toggleCompletion(String id, bool status) async {
+    try {
+      final appointment = _appointments.firstWhere((a) => a.id == id);
+      final updatedAppointment = appointment.copyWith(isCompleted: status);
+      
+      // Optimistic Update
+      final index = _appointments.indexWhere((a) => a.id == id);
+      if (index != -1) {
+        _appointments[index] = updatedAppointment;
+        notifyListeners();
+      }
+      
+      // Update DB via updateAppointment
+      await updateAppointment(updatedAppointment);
+    } catch (e) {
+      debugPrint('Error toggling appointment completion: $e');
+    }
+  }
+
+  void toggleSelection(String id) {
+    if (_selectedIds.contains(id)) {
+      _selectedIds.remove(id);
+    } else {
+      _selectedIds.add(id);
+    }
+    notifyListeners();
+  }
+
+  void clearSelection() {
+    _selectedIds.clear();
+    notifyListeners();
+  }
+
+  Future<void> deleteSelected() async {
+    if (_selectedIds.isEmpty) return;
+
+    final idsToDelete = _selectedIds.toList();
+    // Optimistic Update
+    _appointments.removeWhere((a) => idsToDelete.contains(a.id));
+    _selectedIds.clear();
+    notifyListeners();
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await _supabaseRepository.deleteIds(idsToDelete);
+      }
+      
+      // Delete from local DB
+      for (final id in idsToDelete) {
+        await _dbHelper.deleteAppointment(id);
+      }
+    } catch (e) {
+      debugPrint('Error deleting selected appointments: $e');
+      await loadAppointments(forceRefresh: true);
+      rethrow;
+    }
+  }
 
   AppointmentProvider() {
     // Defer initialization to avoid blocking app startup
