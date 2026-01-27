@@ -8,6 +8,7 @@ import '../providers/task_provider.dart';
 import '../models/task.dart';
 import '../widgets/smart_list_tile.dart';
 import '../widgets/task_filter_dialog.dart';
+import '../widgets/empty_state_view.dart';
 import '../utils/task_status_helper.dart';
 import 'task_form_view.dart';
 import 'main_navigation_view.dart';
@@ -216,40 +217,19 @@ class _TasksListViewState extends State<TasksListView> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    return Container(
-      color: Colors.grey[100], // Light grey background
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.check_circle_outline,
-                size: 64,
-                color: Colors.grey[400],
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'No Tasks',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tap the + button to add your first task',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+    return EmptyStateView(
+      icon: Icons.check_circle_outline_rounded,
+      title: 'No Pending Tasks',
+      description: 'Capture your to-dos, set priorities, and get things done.',
+      buttonText: 'Create Task',
+      onPressed: () {
+        MainNavigationKeys.homeNavigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) => const TaskFormView(),
+            settings: const RouteSettings(name: 'TaskFormView'),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

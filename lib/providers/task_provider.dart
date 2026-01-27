@@ -171,6 +171,12 @@ class TaskProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
+      // Optimistic Update
+      _tasks.add(updatedTask);
+      notifyListeners();
+
+      bool remoteSuccess = false;
+
       // Save to Supabase if authenticated, otherwise save to local SQLite
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
@@ -219,6 +225,8 @@ class TaskProvider with ChangeNotifier {
             await _supabaseRepository.create(supabaseData);
             debugPrint('Task saved to Supabase: ${updatedTask.title}');
           }
+          
+          remoteSuccess = true;
 
           // Remove any local copy with the same id to avoid duplicate listings
           try {
@@ -229,10 +237,12 @@ class TaskProvider with ChangeNotifier {
           debugPrint('Warning: Failed to save task to Supabase: $e');
           debugPrint('Falling back to local save.');
           await _dbHelper.insertTask(updatedTask);
+          // remoteSuccess remains false
         }
       } else {
         // Save locally when not authenticated
         await _dbHelper.insertTask(updatedTask);
+        remoteSuccess = true; // Treated as success for offline mode
       }
 
       if (updatedTask.reminderOffset != ReminderOffset.none &&
@@ -241,10 +251,18 @@ class TaskProvider with ChangeNotifier {
         await _scheduleTaskReminder(updatedTask);
       }
 
-      await loadTasks();
+      // Only reload if remote success (or offline success). 
+      // If remote failed and we fell back to local, don't reload as it would wipe our local optimistic state
+      if (remoteSuccess) {
+        await loadTasks(forceRefresh: true);
+      }
+      
       return updatedTask.id;
     } catch (e) {
       print('Error adding task: $e');
+      // Rollback optimistic update
+      _tasks.removeWhere((t) => t.id == task.id);
+      notifyListeners();
       rethrow;
     }
   }
@@ -264,6 +282,15 @@ class TaskProvider with ChangeNotifier {
       final updatedTask = task.copyWith(
         notificationId: notificationId,
       );
+
+      // Optimistic Update
+      final index = _tasks.indexWhere((t) => t.id == task.id);
+      if (index != -1) {
+        _tasks[index] = updatedTask;
+        notifyListeners();
+      }
+
+      bool remoteSuccess = false;
 
       // Update in Supabase if authenticated, otherwise update local SQLite
       final user = Supabase.instance.client.auth.currentUser;
@@ -304,15 +331,18 @@ class TaskProvider with ChangeNotifier {
           
           await _supabaseRepository.update(updatedTask.id, supabaseData);
           debugPrint('Task updated in Supabase: ${updatedTask.title}');
+          remoteSuccess = true;
         } catch (e) {
           // If Supabase fails, fall back to local update
           debugPrint('Warning: Failed to update task in Supabase: $e');
           debugPrint('Falling back to local update.');
           await _dbHelper.updateTask(updatedTask);
+          // remoteSuccess remains false
         }
       } else {
         // Update locally when not authenticated
         await _dbHelper.updateTask(updatedTask);
+        remoteSuccess = true;
       }
 
       if (updatedTask.reminderOffset != ReminderOffset.none &&
@@ -323,7 +353,9 @@ class TaskProvider with ChangeNotifier {
         await _notificationService.cancelReminder(updatedTask.notificationId!);
       }
 
-      await loadTasks();
+      if (remoteSuccess) {
+        await loadTasks(forceRefresh: true);
+      }
     } catch (e) {
       print('Error updating task: $e');
       rethrow;
@@ -334,6 +366,14 @@ class TaskProvider with ChangeNotifier {
     try {
       final task = _tasks.firstWhere((t) => t.id == taskId);
       final updatedTask = task.copyWith(isCompleted: !task.isCompleted);
+      
+      // Optimistic update for toggle
+      final index = _tasks.indexWhere((t) => t.id == taskId);
+      if (index != -1) {
+        _tasks[index] = updatedTask;
+        notifyListeners();
+      }
+      
       await updateTask(updatedTask);
     } catch (e) {
       print('Error toggling task completion: $e');
@@ -342,29 +382,46 @@ class TaskProvider with ChangeNotifier {
 
   Future<void> deleteTask(String id) async {
     try {
-      final task = await _dbHelper.getTaskById(id);
-      if (task != null && task.notificationId != null) {
-        await _notificationService.cancelReminder(task.notificationId!);
+      final task = _tasks.firstWhere((t) => t.id == id, orElse: () => Task(title: 'Unknown'));
+      
+      // Optimistic Delete
+      _tasks.removeWhere((t) => t.id == id);
+      notifyListeners();
+
+      if (task.id != 'Unknown') { 
+         final dbTask = await _dbHelper.getTaskById(id);
+         if (dbTask != null && dbTask.notificationId != null) {
+            await _notificationService.cancelReminder(dbTask.notificationId!);
+         } else if (task.notificationId != null) {
+            await _notificationService.cancelReminder(task.notificationId!);
+         }
       }
+
+      bool remoteSuccess = false;
 
       // Delete from Supabase if authenticated, otherwise delete from local SQLite
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
         try {
           await _supabaseRepository.delete(id);
-          debugPrint('Task deleted from Supabase: ${task?.title ?? "Unknown"}');
+          debugPrint('Task deleted from Supabase: ${task.title}');
+          remoteSuccess = true;
         } catch (e) {
           // If Supabase fails, fall back to local delete
           debugPrint('Warning: Failed to delete task from Supabase: $e');
           debugPrint('Falling back to local delete.');
           await _dbHelper.deleteTask(id);
+          // remoteSuccess remains false
         }
       } else {
         // Delete locally when not authenticated
         await _dbHelper.deleteTask(id);
+        remoteSuccess = true;
       }
 
-      await loadTasks();
+      if (remoteSuccess) {
+        await loadTasks(forceRefresh: true);
+      }
     } catch (e) {
       print('Error deleting task: $e');
       rethrow;

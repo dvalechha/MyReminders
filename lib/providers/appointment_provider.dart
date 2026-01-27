@@ -209,6 +209,11 @@ class AppointmentProvider with ChangeNotifier {
         notificationId: notificationId,
       );
 
+      // Optimistic Update
+      _appointments.add(updatedAppointment);
+      _appointments.sort((a, b) => a.dateTime.compareTo(b.dateTime));
+      notifyListeners();
+
       // Save to Supabase if authenticated, otherwise save to local SQLite
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
@@ -224,7 +229,6 @@ class AppointmentProvider with ChangeNotifier {
             
             if (categoryId == null) {
               debugPrint('⚠️ [AppointmentProvider] Category "${appointment.category}" not found, using "Appointment" category');
-              // Fallback to "Appointment" category if specified category not found
               final defaultCategory = await _categoryRepository.getByName('Appointment');
               categoryId = defaultCategory?.id;
             }
@@ -234,7 +238,6 @@ class AppointmentProvider with ChangeNotifier {
             }
           } else {
             debugPrint('🏷️ [AppointmentProvider] No category specified, using "Appointment" as default');
-            // Default to "Appointment" category for appointments
             final defaultCategory = await _categoryRepository.getByName('Appointment');
             categoryId = defaultCategory?.id;
             if (categoryId != null) {
@@ -244,14 +247,12 @@ class AppointmentProvider with ChangeNotifier {
 
           debugPrint('🏷️ [AppointmentProvider] Final categoryId for save: $categoryId');
           
-          // Convert to Supabase format and save
           final supabaseData = updatedAppointment.toSupabaseMap(
             userId: user.id,
             categoryId: categoryId,
           );
           debugPrint('🏷️ [AppointmentProvider] Supabase data: $supabaseData');
           
-          // If an appointment with the same id exists in Supabase, update it instead of creating
           final existing = await _supabaseRepository.getById(updatedAppointment.id);
           if (existing != null) {
             await _supabaseRepository.update(updatedAppointment.id, supabaseData);
@@ -261,10 +262,11 @@ class AppointmentProvider with ChangeNotifier {
             debugPrint('Appointment saved to Supabase: ${updatedAppointment.title}');
           }
 
-          // Remove any local copy with the same id to avoid duplicate listings
+          // Also save to local DB for offline cache consistency
           try {
-            await _dbHelper.deleteAppointment(updatedAppointment.id);
+            await _dbHelper.insertAppointment(updatedAppointment);
           } catch (_) {}
+
         } catch (e) {
           // If Supabase fails, fall back to local save
           debugPrint('Warning: Failed to save appointment to Supabase: $e');
@@ -281,10 +283,13 @@ class AppointmentProvider with ChangeNotifier {
         await _scheduleAppointmentReminder(updatedAppointment);
       }
 
-      await loadAppointments();
+      // No reload to prevent UI flash
       return updatedAppointment.id;
     } catch (e) {
       print('Error adding appointment: $e');
+      // Rollback optimistic update
+      _appointments.removeWhere((a) => a.id == appointment.id);
+      notifyListeners();
       rethrow;
     }
   }
@@ -304,6 +309,14 @@ class AppointmentProvider with ChangeNotifier {
       final updatedAppointment = appointment.copyWith(
         notificationId: notificationId,
       );
+
+      // Optimistic Update
+      final index = _appointments.indexWhere((a) => a.id == appointment.id);
+      if (index != -1) {
+        _appointments[index] = updatedAppointment;
+        _appointments.sort((a, b) => a.dateTime.compareTo(b.dateTime));
+        notifyListeners();
+      }
 
       // Update in Supabase if authenticated, otherwise update local SQLite
       final user = Supabase.instance.client.auth.currentUser;
@@ -344,6 +357,12 @@ class AppointmentProvider with ChangeNotifier {
           
           await _supabaseRepository.update(updatedAppointment.id, supabaseData);
           debugPrint('Appointment updated in Supabase: ${updatedAppointment.title}');
+          
+          // Also update local DB
+          try {
+            await _dbHelper.updateAppointment(updatedAppointment);
+          } catch (_) {}
+
         } catch (e) {
           // If Supabase fails, fall back to local update
           debugPrint('Warning: Failed to update appointment in Supabase: $e');
@@ -368,7 +387,7 @@ class AppointmentProvider with ChangeNotifier {
         await _notificationService.cancelReminder(updatedAppointment.notificationId!);
       }
 
-      await loadAppointments();
+      // No reload
     } catch (e) {
       print('Error updating appointment: $e');
       rethrow;
@@ -377,9 +396,20 @@ class AppointmentProvider with ChangeNotifier {
 
   Future<void> deleteAppointment(String id) async {
     try {
-      final appointment = await _dbHelper.getAppointmentById(id);
-      if (appointment != null && appointment.notificationId != null) {
+      final appointment = _appointments.firstWhere((a) => a.id == id, orElse: () => Appointment(title: 'Unknown', dateTime: DateTime.now()));
+      
+      // Optimistic Delete
+      _appointments.removeWhere((a) => a.id == id);
+      notifyListeners();
+
+      if (appointment.notificationId != null) {
         await _notificationService.cancelReminder(appointment.notificationId!);
+      } else if (appointment.id != 'Unknown') {
+         // Try checking local DB if not in memory
+         final dbAppt = await _dbHelper.getAppointmentById(id);
+         if (dbAppt != null && dbAppt.notificationId != null) {
+            await _notificationService.cancelReminder(dbAppt.notificationId!);
+         }
       }
 
       // Delete from Supabase if authenticated, otherwise delete from local SQLite
@@ -387,7 +417,9 @@ class AppointmentProvider with ChangeNotifier {
       if (user != null) {
         try {
           await _supabaseRepository.delete(id);
-          debugPrint('Appointment deleted from Supabase: ${appointment?.title ?? "Unknown"}');
+          debugPrint('Appointment deleted from Supabase: ${appointment.title}');
+          // Also delete from local DB to maintain consistency
+          try { await _dbHelper.deleteAppointment(id); } catch (_) {}
         } catch (e) {
           // If Supabase fails, fall back to local delete
           debugPrint('Warning: Failed to delete appointment from Supabase: $e');
@@ -399,7 +431,7 @@ class AppointmentProvider with ChangeNotifier {
         await _dbHelper.deleteAppointment(id);
       }
 
-      await loadAppointments();
+      // No reload
     } catch (e) {
       print('Error deleting appointment: $e');
       rethrow;

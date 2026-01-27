@@ -3,12 +3,11 @@ import 'package:flutter/cupertino.dart';
 import 'dart:io' show Platform;
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../providers/navigation_model.dart';
 import '../providers/appointment_provider.dart';
 import '../models/appointment.dart';
-import '../widgets/smart_list_tile.dart';
-import '../widgets/appointment_filter_dialog.dart';
 import '../utils/appointment_status_helper.dart';
+import '../widgets/appointment_filter_dialog.dart';
+import '../widgets/empty_state_view.dart';
 import 'appointment_form_view.dart';
 import 'main_navigation_view.dart';
 
@@ -95,8 +94,6 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
 
   @override
   Widget build(BuildContext context) {
-    final navigationModel = Provider.of<NavigationModel>(context, listen: false);
-    
     return Consumer<AppointmentProvider>(
       builder: (context, provider, child) {
         if (provider.isLoading) {
@@ -222,40 +219,19 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    return Container(
-      color: Colors.grey[100], // Light grey background
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.calendar_today,
-                size: 64,
-                color: Colors.grey[400],
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'No Appointments',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tap the + button to add your first appointment',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+    return EmptyStateView(
+      icon: Icons.calendar_month_rounded,
+      title: 'Your Schedule is Clear',
+      description: 'Add upcoming dentist visits, meetings, or coffee dates so you never miss a beat.',
+      buttonText: 'Schedule Appointment',
+      onPressed: () {
+        MainNavigationKeys.homeNavigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) => const AppointmentFormView(),
+            settings: const RouteSettings(name: 'AppointmentFormView'),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -280,19 +256,67 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
     final sortedAppointments = List<Appointment>.from(filteredAppointments);
     sortedAppointments.sort((a, b) => a.dateTime.compareTo(b.dateTime));
 
+    // Group appointments by Date (Day/Month/Year)
+    final groupedAppointments = <String, List<Appointment>>{};
+    for (final appointment in sortedAppointments) {
+      final dateKey = DateFormat('yyyy-MM-dd').format(appointment.dateTime);
+      if (!groupedAppointments.containsKey(dateKey)) {
+        groupedAppointments[dateKey] = [];
+      }
+      groupedAppointments[dateKey]!.add(appointment);
+    }
+
     // Determine scroll physics based on platform
     final scrollPhysics = Platform.isIOS
         ? const BouncingScrollPhysics()
         : const ClampingScrollPhysics();
 
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 0),
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 16),
       physics: scrollPhysics,
-      itemCount: sortedAppointments.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemCount: groupedAppointments.length,
       itemBuilder: (context, index) {
-        final appointment = sortedAppointments[index];
-        return _buildAppointmentCard(context, appointment, provider);
+        final dateKey = groupedAppointments.keys.elementAt(index);
+        final appointmentsForDay = groupedAppointments[dateKey]!;
+        final date = DateTime.parse(dateKey);
+        
+        // Header Text Logic
+        String headerText;
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final tomorrow = today.add(const Duration(days: 1));
+        final dateToCheck = DateTime(date.year, date.month, date.day);
+
+        if (dateToCheck == today) {
+          headerText = 'Today';
+        } else if (dateToCheck == tomorrow) {
+          headerText = 'Tomorrow';
+        } else {
+          headerText = DateFormat('EEE, MMM d').format(date);
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Section Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                headerText,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            // Items for this day
+            ...appointmentsForDay.map((appointment) => 
+              _buildAppointmentCard(context, appointment, provider)
+            ),
+          ],
+        );
       },
     );
   }
@@ -302,10 +326,24 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
     Appointment appointment,
     AppointmentProvider provider,
   ) {
-    final statusColor = getAppointmentStatusColor(appointment.dateTime);
+    // Logic for color bar
+    // If Date is Today: Orange (Urgency/Attention)
+    // If Date is Future: Blue (Standard/Safe)
+    // If Date is Past: Grey
+    Color statusColor;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final appointmentDate = DateTime(appointment.dateTime.year, appointment.dateTime.month, appointment.dateTime.day);
 
-    final cardContent = SmartListTile(
-      statusColor: statusColor,
+    if (appointmentDate.isAtSameMomentAs(today)) {
+      statusColor = Colors.orange;
+    } else if (appointmentDate.isBefore(today)) {
+      statusColor = Colors.grey;
+    } else {
+      statusColor = const Color(0xFF2D62ED); // Brand Blue
+    }
+
+    final cardContent = InkWell(
       onTap: () {
         MainNavigationKeys.homeNavigatorKey.currentState?.push(
           MaterialPageRoute(
@@ -316,81 +354,134 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
           ),
         );
       },
-      padding: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Row(
-          children: [
-            // Leading: Time column (e.g., "3:00\nPM")
-            Container(
-              width: 60,
-              child: Text(
-                formatAppointmentTime(appointment.dateTime),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                  height: 1.2,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 1. Visual Status Indicator (Color Bar)
+              Container(
+                width: 6,
+                color: statusColor,
+              ),
+              
+              // 2. Content
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      // Time Column
+                      SizedBox(
+                        width: 65,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              DateFormat('h:mm').format(appointment.dateTime),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            Text(
+                              DateFormat('a').format(appointment.dateTime),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      // Divider line (optional, but nice for structure)
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: Colors.grey[200],
+                        margin: const EdgeInsets.only(right: 16),
+                      ),
+
+                      // Details Column
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              appointment.title,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (appointment.location != null && appointment.location!.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.location_on,
+                                    size: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      appointment.location!,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+
+                      // Chevron
+                      if (Platform.isIOS)
+                        const Icon(
+                          CupertinoIcons.chevron_right,
+                          size: 16,
+                          color: Colors.grey,
+                        )
+                      else
+                        const Icon(
+                          Icons.arrow_forward_ios,
+                          size: 14,
+                          color: Colors.grey,
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 16),
-            // Center: Title and Location
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Row 1: Appointment Title (Bold)
-                  Text(
-                    appointment.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  // Row 2: Location with icon
-                  if (appointment.location != null) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on,
-                          size: 12,
-                          color: Colors.grey[700],
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            appointment.location!,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[700],
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            // Trailing: Chevron right (adaptive icon)
-            if (Platform.isIOS)
-              const Icon(
-                CupertinoIcons.chevron_right,
-                size: 16,
-                color: Colors.grey,
-              )
-            else
-              const Icon(
-                Icons.arrow_forward_ios,
-                size: 14,
-                color: Colors.grey,
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -402,6 +493,7 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
           color: Colors.red,
           borderRadius: BorderRadius.circular(16),

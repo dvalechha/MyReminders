@@ -8,6 +8,7 @@ import '../providers/subscription_provider.dart';
 import '../models/subscription.dart';
 import '../widgets/subscription_filter_dialog.dart';
 import '../widgets/subscription_card.dart';
+import '../widgets/empty_state_view.dart';
 import 'subscription_form_view.dart';
 import 'main_navigation_view.dart';
 
@@ -358,40 +359,19 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    return Container(
-      color: Colors.grey[100], // Light grey background
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.credit_card,
-                size: 64,
-                color: Colors.grey[400],
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'No Subscriptions',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tap the + button to add your first subscription',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+    return EmptyStateView(
+      icon: Icons.credit_card_outlined,
+      title: 'No Active Subscriptions',
+      description: 'Track recurring expenses like Netflix, Spotify, or Gym memberships in one place.',
+      buttonText: 'Add First Subscription',
+      onPressed: () {
+        MainNavigationKeys.homeNavigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) => const SubscriptionFormView(),
+            settings: const RouteSettings(name: 'SubscriptionFormView'),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

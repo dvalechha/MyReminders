@@ -7,6 +7,7 @@ import 'local_cache_service.dart';
 import 'state_reset_service.dart';
 import 'secure_storage_service.dart';
 import '../views/logout_splash_screen.dart';
+import '../widgets/auth_gate.dart';
 import '../providers/auth_provider.dart';
 import '../providers/navigation_model.dart';
 
@@ -41,23 +42,22 @@ class LogoutService {
   /// 7. Stop live listeners
   /// 8. Navigate to root (AuthGate shows LoginScreen)
   Future<void> logout(BuildContext context) async {
-    // Store references before async operations
-    final navigator = Navigator.of(context);
     // Get NavigationModel for reliable navigation via global navigator key
     final navigationModel = Provider.of<NavigationModel>(context, listen: false);
     // Get AuthProvider reference early
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     
-    if (!context.mounted) {
-      debugPrint('Logout: Context not mounted');
-      return;
-    }
+    // We don't strictly need context mounted check for the initial logic if we use global keys,
+    // but good to keep if we were using local context. 
+    // Here we will shift to using navigationModel.navigatorKey for the Splash Screen too
+    // to ensure it covers the whole app (including bottom tabs) and is on the root stack.
 
     try {
       debugPrint('Logout: Starting logout process');
       
-      // Step 1: Immediately push LogoutSplashScreen (on top of current screen)
-      navigator.push(
+      // Step 1: Immediately push LogoutSplashScreen to ROOT navigator
+      // Using root navigator ensures it covers bottom navigation bar and everything else
+      navigationModel.navigatorKey.currentState?.push(
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) {
             debugPrint('Logout: LogoutSplashScreen pageBuilder called');
@@ -70,8 +70,8 @@ class LogoutService {
               child: child,
             );
           },
-          opaque: true, // Fully opaque to cover the welcome view
-          barrierDismissible: false, // Prevent dismissing by tapping outside
+          opaque: true, // Fully opaque to cover everything
+          barrierDismissible: false, 
         ),
       );
 
@@ -105,7 +105,6 @@ class LogoutService {
       await Future.delayed(const Duration(milliseconds: 100));
       
       // Step 8: Manually clear user state (using the reference we got earlier)
-      // This ensures state is cleared even if the original context is no longer mounted
       authProvider.clearUserState();
       debugPrint('Logout: User state cleared');
       
@@ -115,18 +114,28 @@ class LogoutService {
       // Step 10: Wait a moment for UI to update
       await Future.delayed(const Duration(milliseconds: 500));
       
-      // Step 11: Navigate to root using the global navigator key
-      // This clears the entire navigation stack and returns to AuthGate
-      // AuthGate will detect null session and show LoginScreen
-      debugPrint('Logout: Navigating to root');
-      navigationModel.popToRoot();
+      // Step 11: Navigate to AuthGate (Root)
+      // We use pushAndRemoveUntil to clear the entire stack (including the Splash Screen we just pushed)
+      // and restart the app flow from AuthGate.
+      debugPrint('Logout: Navigating to AuthGate (Root)');
+      navigationModel.navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => const AuthGate(),
+        ),
+        (route) => false, // Remove all routes
+      );
       
       debugPrint('Logout: Logout complete');
     } catch (e) {
       debugPrint('Logout error: $e');
-      // If error occurs, try to pop the splash screen
+      // If error occurs, try to force navigate to AuthGate
       try {
-        navigationModel.popToRoot();
+        navigationModel.navigatorKey.currentState?.pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const AuthGate(),
+          ),
+          (route) => false,
+        );
       } catch (_) {
         // Ignore navigation errors during error handling
       }

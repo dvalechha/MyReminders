@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../widgets/modern_form_field.dart';
 import '../utils/snackbar.dart';
 import '../models/appointment.dart';
 import '../providers/appointment_provider.dart';
@@ -30,6 +31,8 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
   final _titleController = TextEditingController();
   final _locationController = TextEditingController();
   final _notesController = TextEditingController();
+  final _dateController = TextEditingController();
+  final _timeController = TextEditingController();
 
   DateTime _selectedDateTime = DateTime.now();
   ReminderOffset _selectedReminder = ReminderOffset.none;
@@ -44,7 +47,7 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
                widget.initialDateTime != null || 
                widget.initialLocation != null ||
                widget.initialNotes != null) {
-      // Pre-populate with initial values (for new appointments from parser)
+      // Pre-populate with initial values
       if (widget.initialTitle != null) {
         _titleController.text = widget.initialTitle!;
       }
@@ -58,6 +61,12 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
         _notesController.text = widget.initialNotes!;
       }
     }
+    _updateDateTimeControllers();
+  }
+
+  void _updateDateTimeControllers() {
+    _dateController.text = DateFormat('MMM d, yyyy').format(_selectedDateTime);
+    _timeController.text = DateFormat('h:mm a').format(_selectedDateTime);
   }
 
   void _loadAppointmentData() {
@@ -67,6 +76,7 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
     _notesController.text = apt.notes ?? '';
     _selectedDateTime = apt.dateTime.toLocal();
     _selectedReminder = apt.reminderOffset;
+    _updateDateTimeControllers();
   }
 
   @override
@@ -74,33 +84,13 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
     _titleController.dispose();
     _locationController.dispose();
     _notesController.dispose();
+    _dateController.dispose();
+    _timeController.dispose();
     super.dispose();
   }
 
   bool get _isFormValid {
     return _titleController.text.trim().isNotEmpty;
-  }
-
-  Widget _buildRequiredLabel(String text) {
-    return Row(
-      children: [
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[700],
-          ),
-        ),
-        const Text(
-          ' *',
-          style: TextStyle(
-            color: Colors.red,
-            fontSize: 14,
-            fontWeight: FontWeight.normal,
-          ),
-        ),
-      ],
-    );
   }
 
   Future<void> _selectDateTime() async {
@@ -124,9 +114,11 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
             time.hour,
             time.minute,
           );
+          _updateDateTimeControllers();
         });
       } else {
-        // If time picker is cancelled but date was selected, set time to current time
+        // If time picker is cancelled but date was selected, preserve existing time or set to current?
+        // Logic in original was: "set time to current time". Let's stick to original logic.
         setState(() {
           final now = DateTime.now();
           _selectedDateTime = DateTime(
@@ -136,6 +128,7 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
             now.hour,
             now.minute,
           );
+          _updateDateTimeControllers();
         });
       }
     }
@@ -163,7 +156,7 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
     final appointment = Appointment(
       id: widget.appointment?.id,
       title: _titleController.text.trim(),
-      category: null, // Category is automatically set to "Appointment" by provider
+      category: null, 
       dateTime: _selectedDateTime,
       location: _locationController.text.trim().isEmpty
           ? null
@@ -256,143 +249,230 @@ class _AppointmentFormViewState extends State<AppointmentFormView> {
               ]
             : null,
       ),
-      body: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  const Text(
-                    'APPOINTMENT DETAILS',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Title *',
-                      border: OutlineInputBorder(),
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a title';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  ListTile(
-                    title: const Text('Date & Time *'),
-                    subtitle: Text(DateFormat('MMM d, yyyy').format(_selectedDateTime)),
-                    trailing: const Icon(Icons.calendar_today),
-                    onTap: _selectDateTime,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.grey[300]!),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _locationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Location',
-                      border: OutlineInputBorder(),
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _notesController,
-                    decoration: const InputDecoration(
-                      labelText: 'Notes',
-                      border: OutlineInputBorder(),
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                    ),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'REMINDER',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<ReminderOffset>(
-                    value: _selectedReminder,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                    ),
-                    items: ReminderOffset.values.map((offset) {
-                      return DropdownMenuItem(
-                        value: offset,
-                        child: Text(offset.value),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _selectedReminder = value);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withValues(alpha: 0.2),
-                    spreadRadius: 1,
-                    blurRadius: 4,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: (_isFormValid && !_isSaving) ? _saveAppointment : null,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: (_isFormValid && !_isSaving) ? Colors.blue : Colors.grey,
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(
-                          widget.appointment == null
-                              ? 'Save Appointment'
-                              : 'Update Appointment',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
+      backgroundColor: Colors.grey[50],
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    // Card 1: Event Details
+                    _buildSectionCard(
+                      children: [
+                        ModernFormField(
+                          label: 'Title *',
+                          controller: _titleController,
+                          textInputAction: TextInputAction.next,
+                          textCapitalization: TextCapitalization.sentences,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter a title';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        ModernFormField(
+                          label: 'Location',
+                          controller: _locationController,
+                          textCapitalization: TextCapitalization.sentences,
+                          prefixIcon: const Padding(
+                            padding: EdgeInsets.only(left: 12, right: 8),
+                            child: Icon(Icons.location_on_outlined, size: 20, color: Colors.grey),
                           ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Card 2: Timing
+                    _buildSectionCard(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ModernFormField(
+                                label: 'Date',
+                                controller: _dateController,
+                                readOnly: true,
+                                onTap: _selectDateTime,
+                                prefixIcon: const Padding(
+                                  padding: EdgeInsets.only(left: 12, right: 8),
+                                  child: Icon(Icons.calendar_today_rounded, size: 20, color: Color(0xFF2D62ED)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ModernFormField(
+                                label: 'Time',
+                                controller: _timeController,
+                                readOnly: true,
+                                onTap: _selectDateTime,
+                                prefixIcon: const Padding(
+                                  padding: EdgeInsets.only(left: 12, right: 8),
+                                  child: Icon(Icons.access_time_rounded, size: 20, color: Color(0xFF2D62ED)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Card 3: Notes & Reminders
+                    _buildSectionCard(
+                      children: [
+                        _buildDropdownField<ReminderOffset>(
+                          label: 'Reminder',
+                          value: _selectedReminder,
+                          items: ReminderOffset.values,
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _selectedReminder = value);
+                            }
+                          },
+                          displayText: (val) => val.value,
+                        ),
+                        const SizedBox(height: 16),
+                        ModernFormField(
+                          label: 'Notes',
+                          controller: _notesController,
+                          maxLines: 3,
+                          textCapitalization: TextCapitalization.sentences,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 80),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+
+          // Save Button
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withValues(alpha: 0.1),
+                  spreadRadius: 1,
+                  blurRadius: 10,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: (_isFormValid && !_isSaving) ? _saveAppointment : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: (_isFormValid && !_isSaving)
+                      ? const Color(0xFF2D62ED)
+                      : Colors.grey[300],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: (_isFormValid && !_isSaving) ? 4 : 0,
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        widget.appointment == null
+                            ? 'Save Appointment'
+                            : 'Update Appointment',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildSectionCard({required List<Widget> children}) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+
+  Widget _buildDropdownField<T>({
+    required String label,
+    required T value,
+    required List<T> items,
+    required ValueChanged<T?> onChanged,
+    required String Function(T) displayText,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8.0, left: 4.0),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[800],
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              value: value,
+              isExpanded: true,
+              icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
+              items: items.map((item) {
+                return DropdownMenuItem(
+                  value: item,
+                  child: Text(displayText(item), style: const TextStyle(fontSize: 16)),
+                );
+              }).toList(),
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
