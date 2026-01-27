@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../widgets/empty_state_view.dart';
 import '../providers/subscription_provider.dart';
 import '../providers/appointment_provider.dart';
 import '../providers/task_provider.dart';
@@ -32,7 +33,16 @@ class _UnifiedAgendaViewState extends State<UnifiedAgendaView> {
         scrolledUnderElevation: 0,
       ),
       body: items.isEmpty
-          ? const Center(child: Text('No upcoming items'))
+          ? EmptyStateView(
+              icon: Icons.event_available_rounded,
+              title: 'No Upcoming Items',
+              description: 'You are all caught up! Enjoy your free time.',
+              buttonText: 'Add New Item',
+              onPressed: () {
+                // Navigate back to Home (WelcomeView) where the Omnibox is
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+            )
           : Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: ListView.builder(

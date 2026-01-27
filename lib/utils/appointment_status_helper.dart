@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/appointment.dart';
 
 /// Helper functions for determining appointment status colors
 /// 
