@@ -18,9 +18,77 @@ class TaskProvider with ChangeNotifier {
 
   List<Task> _tasks = [];
   bool _isLoading = false;
+  final Set<String> _selectedIds = {};
 
   List<Task> get tasks => _tasks;
+  
+  // New getters for active/completed items
+  List<Task> get activeItems => _tasks.where((t) => !t.isCompleted).toList();
+  List<Task> get completedItems => _tasks.where((t) => t.isCompleted).toList();
+  
   bool get isLoading => _isLoading;
+  bool get isSelectionMode => _selectedIds.isNotEmpty;
+  Set<String> get selectedIds => _selectedIds;
+
+  Future<void> toggleCompletion(String id, bool status) async {
+    try {
+      final task = _tasks.firstWhere((t) => t.id == id);
+      final updatedTask = task.copyWith(isCompleted: status);
+      
+      // Optimistic Update
+      final index = _tasks.indexWhere((t) => t.id == id);
+      if (index != -1) {
+        _tasks[index] = updatedTask;
+        notifyListeners();
+      }
+      
+      // Update DB via updateTask (which handles remote/local sync)
+      await updateTask(updatedTask);
+    } catch (e) {
+      debugPrint('Error toggling task completion: $e');
+    }
+  }
+
+  void toggleSelection(String id) {
+    if (_selectedIds.contains(id)) {
+      _selectedIds.remove(id);
+    } else {
+      _selectedIds.add(id);
+    }
+    notifyListeners();
+  }
+
+  void clearSelection() {
+    _selectedIds.clear();
+    notifyListeners();
+  }
+
+  Future<void> deleteSelected() async {
+    if (_selectedIds.isEmpty) return;
+
+    final idsToDelete = _selectedIds.toList();
+    // Optimistic Update: Remove from local list immediately
+    _tasks.removeWhere((t) => idsToDelete.contains(t.id));
+    // Clear selection so UI exits selection mode
+    _selectedIds.clear();
+    notifyListeners();
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await _supabaseRepository.deleteIds(idsToDelete);
+      }
+      
+      // Delete from local DB
+      for (final id in idsToDelete) {
+        await _dbHelper.deleteTask(id);
+      }
+    } catch (e) {
+      debugPrint('Error deleting selected tasks: $e');
+      await loadTasks(forceRefresh: true);
+      rethrow;
+    }
+  }
 
   TaskProvider() {
     // Defer initialization to avoid blocking app startup
@@ -85,7 +153,7 @@ class TaskProvider with ChangeNotifier {
 
           final supabaseRows = await _supabaseRepository.getAllForUser(user.id);
           // Map category_id to category name using pre-fetched category map
-          // Map and dedupe tasks by id and by (title + dueDate)
+          // Map to Task objects to dedupe by ID
           final Map<String, Task> mapped = {};
           for (final row in supabaseRows) {
             final categoryId = row['category_id'] as String?;
@@ -97,27 +165,31 @@ class TaskProvider with ChangeNotifier {
             mapped[t.id] = t;
           }
 
-          // Further dedupe by title + dueDate (date only)
+          // Convert to list and sort
           final items = mapped.values.toList();
           items.sort((a, b) {
-            final da = a.dueDate ?? DateTime.fromMillisecondsSinceEpoch(0);
-            final db = b.dueDate ?? DateTime.fromMillisecondsSinceEpoch(0);
-            return da.compareTo(db);
+            // Sort by completion (incomplete first), then overdue, then due date, then priority
+            if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
+            
+            final now = DateTime.now();
+            final aDate = a.dueDate ?? DateTime.fromMillisecondsSinceEpoch(0); // far past
+            final bDate = b.dueDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+            
+            // If both incomplete, checking overdue logic might be complex here, 
+            // but just sorting by due date is consistent with repository.
+            // Repostory sorts by due_date ascending.
+            // Let's rely on simple date sort here or keep existing sort?
+            // Existing sort in View is robust. Here just basic sort.
+            return aDate.compareTo(bDate);
           });
-          final seen = <String>{};
-          final deduped = <Task>[];
-          for (final t in items) {
-            final dateKey = t.dueDate != null ? t.dueDate!.toIso8601String().split('T')[0] : 'nodate';
-            final key = '${t.title.toLowerCase().trim()}|$dateKey';
-            if (!seen.contains(key)) {
-              seen.add(key);
-              deduped.add(t);
-            }
-          }
-          _tasks = deduped;
+          
+          debugPrint('✅ [TaskProvider] Loaded ${items.length} tasks from Supabase');
+          
+          _tasks = items;
         } catch (e) {
           debugPrint('Warning: Failed to fetch tasks from Supabase, falling back to local: $e');
           _tasks = await _dbHelper.getAllTasks();
+          debugPrint('✅ [TaskProvider] Loaded ${_tasks.length} tasks from Local DB');
         }
       
       await _rescheduleAllReminders();
@@ -175,8 +247,6 @@ class TaskProvider with ChangeNotifier {
       _tasks.add(updatedTask);
       notifyListeners();
 
-      bool remoteSuccess = false;
-
       // Save to Supabase if authenticated, otherwise save to local SQLite
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
@@ -226,23 +296,17 @@ class TaskProvider with ChangeNotifier {
             debugPrint('Task saved to Supabase: ${updatedTask.title}');
           }
           
-          remoteSuccess = true;
-
           // Remove any local copy with the same id to avoid duplicate listings
           try {
             await _dbHelper.deleteTask(updatedTask.id);
           } catch (_) {}
         } catch (e) {
-          // If Supabase fails, fall back to local save
-          debugPrint('Warning: Failed to save task to Supabase: $e');
-          debugPrint('Falling back to local save.');
-          await _dbHelper.insertTask(updatedTask);
-          // remoteSuccess remains false
+          debugPrint('❌ [TaskProvider] Failed to save task to Supabase: $e');
+          rethrow; // Fail hard so optimistic update is rolled back
         }
       } else {
         // Save locally when not authenticated
         await _dbHelper.insertTask(updatedTask);
-        remoteSuccess = true; // Treated as success for offline mode
       }
 
       if (updatedTask.reminderOffset != ReminderOffset.none &&
@@ -251,12 +315,7 @@ class TaskProvider with ChangeNotifier {
         await _scheduleTaskReminder(updatedTask);
       }
 
-      // Only reload if remote success (or offline success). 
-      // If remote failed and we fell back to local, don't reload as it would wipe our local optimistic state
-      if (remoteSuccess) {
-        await loadTasks(forceRefresh: true);
-      }
-      
+      await loadTasks(forceRefresh: true);
       return updatedTask.id;
     } catch (e) {
       print('Error adding task: $e');
@@ -289,8 +348,6 @@ class TaskProvider with ChangeNotifier {
         _tasks[index] = updatedTask;
         notifyListeners();
       }
-
-      bool remoteSuccess = false;
 
       // Update in Supabase if authenticated, otherwise update local SQLite
       final user = Supabase.instance.client.auth.currentUser;
@@ -331,18 +388,13 @@ class TaskProvider with ChangeNotifier {
           
           await _supabaseRepository.update(updatedTask.id, supabaseData);
           debugPrint('Task updated in Supabase: ${updatedTask.title}');
-          remoteSuccess = true;
         } catch (e) {
-          // If Supabase fails, fall back to local update
-          debugPrint('Warning: Failed to update task in Supabase: $e');
-          debugPrint('Falling back to local update.');
-          await _dbHelper.updateTask(updatedTask);
-          // remoteSuccess remains false
+          debugPrint('❌ [TaskProvider] Failed to update task in Supabase: $e');
+          rethrow; // Fail hard
         }
       } else {
         // Update locally when not authenticated
         await _dbHelper.updateTask(updatedTask);
-        remoteSuccess = true;
       }
 
       if (updatedTask.reminderOffset != ReminderOffset.none &&
@@ -353,11 +405,11 @@ class TaskProvider with ChangeNotifier {
         await _notificationService.cancelReminder(updatedTask.notificationId!);
       }
 
-      if (remoteSuccess) {
-        await loadTasks(forceRefresh: true);
-      }
+      await loadTasks(forceRefresh: true);
     } catch (e) {
       print('Error updating task: $e');
+      // Rollback by reloading from source (simpler than manual revert)
+      await loadTasks(forceRefresh: true);
       rethrow;
     }
   }
@@ -397,33 +449,26 @@ class TaskProvider with ChangeNotifier {
          }
       }
 
-      bool remoteSuccess = false;
-
       // Delete from Supabase if authenticated, otherwise delete from local SQLite
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
         try {
           await _supabaseRepository.delete(id);
           debugPrint('Task deleted from Supabase: ${task.title}');
-          remoteSuccess = true;
         } catch (e) {
-          // If Supabase fails, fall back to local delete
-          debugPrint('Warning: Failed to delete task from Supabase: $e');
-          debugPrint('Falling back to local delete.');
-          await _dbHelper.deleteTask(id);
-          // remoteSuccess remains false
+          debugPrint('❌ [TaskProvider] Failed to delete task from Supabase: $e');
+          rethrow; // Fail hard so optimistic update is rolled back
         }
       } else {
         // Delete locally when not authenticated
         await _dbHelper.deleteTask(id);
-        remoteSuccess = true;
       }
 
-      if (remoteSuccess) {
-        await loadTasks(forceRefresh: true);
-      }
+      await loadTasks(forceRefresh: true);
     } catch (e) {
       print('Error deleting task: $e');
+      // Rollback: reload to restore deleted item
+      await loadTasks(forceRefresh: true);
       rethrow;
     }
   }

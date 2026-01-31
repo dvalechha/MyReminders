@@ -15,7 +15,8 @@ class AppointmentRepository {
           .from('appointments')
           .select()
           .eq('user_id', userId)
-          .order('start_time');
+          .order('is_completed', ascending: true) // Sort active first
+          .order('start_time', ascending: true);
 
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
@@ -90,6 +91,21 @@ class AppointmentRepository {
           .eq('user_id', userId);
     } catch (e) {
       throw Exception('Failed to delete appointment: $e');
+    }
+  }
+
+  /// Delete multiple appointments by ID
+  Future<void> deleteIds(List<String> ids) async {
+    if (ids.isEmpty) return;
+    try {
+      final userId = SupabaseUserHelper.getCurrentUserIdOrThrow();
+      await _client
+          .from('appointments')
+          .delete()
+          .inFilter('id', ids)
+          .eq('user_id', userId);
+    } catch (e) {
+      throw Exception('Failed to delete appointments: $e');
     }
   }
 }

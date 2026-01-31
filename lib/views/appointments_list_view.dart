@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +9,7 @@ import '../models/appointment.dart';
 import '../utils/appointment_status_helper.dart';
 import '../widgets/appointment_filter_dialog.dart';
 import '../widgets/empty_state_view.dart';
+import '../widgets/selection_app_bar.dart';
 import 'appointment_form_view.dart';
 import 'main_navigation_view.dart';
 
@@ -24,6 +26,7 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
   DateTime? _filterEndDate;
   bool _filterTodayOnly = false;
   bool _filterUpcomingOnly = false;
+  bool? _filterCompleted = false; // Default to Active only
 
   @override
   void initState() {
@@ -46,6 +49,14 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
   List<Appointment> _filterAppointments(
       List<Appointment> appointments, String searchText) {
     var filtered = appointments;
+    
+    // Filter by completion status
+    // null = Show All
+    // true = Show Completed Only
+    // false = Show Active Only (Default)
+    if (_filterCompleted != null) {
+      filtered = filtered.where((a) => a.isCompleted == _filterCompleted).toList();
+    }
 
     // Apply search filter
     if (searchText.isNotEmpty) {
@@ -110,112 +121,151 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
         final filteredAppointments =
             _filterAppointments(provider.appointments, _searchText);
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('My Appointments'),
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.add),
-                onPressed: () {
-                  MainNavigationKeys.homeNavigatorKey.currentState?.push(
-                    MaterialPageRoute(
-                      builder: (context) => const AppointmentFormView(),
-                      settings: const RouteSettings(name: 'AppointmentFormView'),
-                    ),
-                  );
-                },
-              ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(56),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: TextField(
-                  onChanged: (value) {
-                    setState(() {
-                      _searchText = value;
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Search appointments...',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Filter icon
-                        IconButton(
-                          icon: Stack(
-                            children: [
-                              const Icon(Icons.tune, size: 20),
-                              if (_filterStartDate != null ||
-                                  _filterEndDate != null ||
-                                  _filterTodayOnly ||
-                                  _filterUpcomingOnly)
-                                Positioned(
-                                  right: 0,
-                                  top: 0,
-                                  child: Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.blue,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          onPressed: () async {
-                            final result = await showDialog<Map<String, dynamic>>(
-                              context: context,
-                              builder: (context) => AppointmentFilterDialog(
-                                initialStartDate: _filterStartDate,
-                                initialEndDate: _filterEndDate,
-                              ),
-                            );
-                            if (result != null) {
-                              setState(() {
-                                _filterStartDate = result['startDate'] as DateTime?;
-                                _filterEndDate = result['endDate'] as DateTime?;
-                                _filterTodayOnly = result['todayOnly'] as bool? ?? false;
-                                _filterUpcomingOnly = result['upcomingOnly'] as bool? ?? false;
-                              });
-                            }
+        return PopScope(
+          canPop: !provider.isSelectionMode,
+          onPopInvoked: (didPop) {
+            if (!didPop && provider.isSelectionMode) {
+              provider.clearSelection();
+            }
+          },
+          child: Scaffold(
+            appBar: provider.isSelectionMode
+                ? SelectionAppBar(
+                    selectionCount: provider.selectedIds.length,
+                    onClearSelection: provider.clearSelection,
+                    onDeleteSelected: () => _handleDeleteSelected(context, provider),
+                  )
+                : AppBar(
+                    title: const Text('My Appointments'),
+                    elevation: 0,
+                    scrolledUnderElevation: 0,
+                    actions: [
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: () {
+                          MainNavigationKeys.homeNavigatorKey.currentState?.push(
+                            MaterialPageRoute(
+                              builder: (context) => const AppointmentFormView(),
+                              settings: const RouteSettings(name: 'AppointmentFormView'),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                    bottom: PreferredSize(
+                      preferredSize: const Size.fromHeight(56),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                        child: TextField(
+                          onChanged: (value) {
+                            setState(() {
+                              _searchText = value;
+                            });
                           },
-                        ),
-                        // Clear icon
-                        if (_searchText.isNotEmpty)
-                          IconButton(
-                            icon: const Icon(Icons.clear, size: 20),
-                            onPressed: () {
-                              setState(() {
-                                _searchText = '';
-                              });
-                            },
+                          decoration: InputDecoration(
+                            hintText: 'Search appointments...',
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Filter icon
+                                IconButton(
+                                  icon: Stack(
+                                    children: [
+                                      const Icon(Icons.tune, size: 20),
+                                      if (_filterStartDate != null ||
+                                          _filterEndDate != null ||
+                                          _filterTodayOnly ||
+                                          _filterUpcomingOnly)
+                                        Positioned(
+                                          right: 0,
+                                          top: 0,
+                                          child: Container(
+                                            width: 8,
+                                            height: 8,
+                                            decoration: const BoxDecoration(
+                                              color: Colors.blue,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  onPressed: () async {
+                                    final result = await showDialog<Map<String, dynamic>>(
+                                      context: context,
+                                                                    builder: (context) => AppointmentFilterDialog(
+                                                                      initialStartDate: _filterStartDate,
+                                                                      initialEndDate: _filterEndDate,
+                                                                      initialCompleted: _filterCompleted,
+                                                                    ),
+                                                                  );
+                                                                  if (result != null) {
+                                                                    setState(() {
+                                                                      _filterStartDate = result['startDate'] as DateTime?;
+                                                                      _filterEndDate = result['endDate'] as DateTime?;
+                                                                      _filterTodayOnly = result['todayOnly'] as bool? ?? false;
+                                                                      _filterUpcomingOnly = result['upcomingOnly'] as bool? ?? false;
+                                                                      _filterCompleted = result['completed'] as bool?;
+                                                                    });
+                                                                  }
+                                                                },                                ),
+                                // Clear icon
+                                if (_searchText.isNotEmpty)
+                                  IconButton(
+                                    icon: const Icon(Icons.clear, size: 20),
+                                    onPressed: () {
+                                      setState(() {
+                                        _searchText = '';
+                                      });
+                                    },
+                                  ),
+                              ],
+                            ),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 12,
+                            ),
                           ),
-                      ],
-                    ),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 12,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-            ),
+            backgroundColor: Colors.grey[100], // Light grey background
+            body: provider.appointments.isEmpty
+                ? _buildEmptyState(context)
+                : _buildAppointmentsList(context, provider, filteredAppointments),
           ),
-          backgroundColor: Colors.grey[100], // Light grey background
-          body: provider.appointments.isEmpty
-              ? _buildEmptyState(context)
-              : _buildAppointmentsList(context, provider, filteredAppointments),
         );
       },
     );
+  }
+
+  void _handleDeleteSelected(BuildContext context, AppointmentProvider provider) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Appointments'),
+        content: Text('Are you sure you want to delete ${provider.selectedIds.length} appointments?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await provider.deleteSelected();
+    }
   }
 
   Widget _buildEmptyState(BuildContext context) {
@@ -330,6 +380,7 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
     // If Date is Today: Orange (Urgency/Attention)
     // If Date is Future: Blue (Standard/Safe)
     // If Date is Past: Grey
+    final isSelected = provider.selectedIds.contains(appointment.id);
     Color statusColor;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -343,22 +394,34 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
       statusColor = const Color(0xFF2D62ED); // Brand Blue
     }
 
+    const brandBlue = Color(0xFF2D62ED);
+    const selectedBg = Color(0xFFF0F4FF);
+
     final cardContent = InkWell(
       onTap: () {
-        MainNavigationKeys.homeNavigatorKey.currentState?.push(
-          MaterialPageRoute(
-            builder: (context) => AppointmentFormView(
-              appointment: appointment,
+        if (provider.isSelectionMode) {
+          provider.toggleSelection(appointment.id);
+        } else {
+          MainNavigationKeys.homeNavigatorKey.currentState?.push(
+            MaterialPageRoute(
+              builder: (context) => AppointmentFormView(
+                appointment: appointment,
+              ),
+              settings: const RouteSettings(name: 'AppointmentFormView'),
             ),
-            settings: const RouteSettings(name: 'AppointmentFormView'),
-          ),
-        );
+          );
+        }
+      },
+      onLongPress: () {
+        HapticFeedback.lightImpact();
+        provider.toggleSelection(appointment.id);
       },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isSelected ? selectedBg : Colors.white,
           borderRadius: BorderRadius.circular(16),
+          border: isSelected ? Border.all(color: brandBlue, width: 1.5) : null,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.03),
@@ -411,7 +474,7 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
                         ),
                       ),
                       
-                      // Divider line (optional, but nice for structure)
+                      // Divider line
                       Container(
                         width: 1,
                         height: 40,
@@ -427,10 +490,11 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
                           children: [
                             Text(
                               appointment.title,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.black87,
+                                decoration: appointment.isCompleted ? TextDecoration.lineThrough : null,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -463,8 +527,25 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
                         ),
                       ),
 
-                      // Chevron
-                      if (Platform.isIOS)
+                      // Completion Button (only when not in selection mode)
+                      if (!provider.isSelectionMode)
+                        IconButton(
+                          icon: Icon(
+                            appointment.isCompleted ? Icons.check_circle : Icons.check_circle_outline,
+                            color: appointment.isCompleted ? Colors.green : Colors.grey,
+                          ),
+                          onPressed: () {
+                            provider.toggleCompletion(appointment.id, !appointment.isCompleted);
+                          },
+                        ),
+
+                      // Chevron or Check
+                      if (provider.isSelectionMode)
+                        Icon(
+                          isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                          color: brandBlue,
+                        )
+                      else if (Platform.isIOS)
                         const Icon(
                           CupertinoIcons.chevron_right,
                           size: 16,
@@ -489,7 +570,7 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
     // Wrap in Dismissible for swipe-to-delete
     return Dismissible(
       key: Key(appointment.id),
-      direction: DismissDirection.endToStart,
+      direction: provider.isSelectionMode ? DismissDirection.none : DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
@@ -526,4 +607,5 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
     );
   }
 }
+
 
