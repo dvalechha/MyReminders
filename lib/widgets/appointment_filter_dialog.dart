@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class AppointmentFilterDialog extends StatefulWidget {
   final DateTime? initialStartDate;
   final DateTime? initialEndDate;
+  final bool? initialCompleted;
 
   const AppointmentFilterDialog({
     super.key,
     this.initialStartDate,
     this.initialEndDate,
+    this.initialCompleted,
   });
 
   @override
@@ -19,12 +21,14 @@ class _AppointmentFilterDialogState extends State<AppointmentFilterDialog> {
   DateTime? _endDate;
   bool _todayOnly = false;
   bool _upcomingOnly = false;
+  bool? _completedFilter;
 
   @override
   void initState() {
     super.initState();
     _startDate = widget.initialStartDate;
     _endDate = widget.initialEndDate;
+    _completedFilter = widget.initialCompleted;
   }
 
   Future<void> _selectDate(BuildContext context, bool isStartDate) async {
@@ -59,6 +63,21 @@ class _AppointmentFilterDialogState extends State<AppointmentFilterDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Status Filter
+            const Text(
+              'Status',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                _buildCompletionChip(null, 'All'),
+                _buildCompletionChip(false, 'Active'),
+                _buildCompletionChip(true, 'Completed'),
+              ],
+            ),
+            const SizedBox(height: 24),
             // Quick Filters
             const Text(
               'Quick Filters',
@@ -165,6 +184,7 @@ class _AppointmentFilterDialogState extends State<AppointmentFilterDialog> {
               'endDate': null,
               'todayOnly': false,
               'upcomingOnly': false,
+              'completed': null,
             });
           },
           child: const Text('Clear All'),
@@ -176,11 +196,30 @@ class _AppointmentFilterDialogState extends State<AppointmentFilterDialog> {
               'endDate': _endDate,
               'todayOnly': _todayOnly,
               'upcomingOnly': _upcomingOnly,
+              'completed': _completedFilter,
             });
           },
           child: const Text('Apply'),
         ),
       ],
+    );
+  }
+
+  Widget _buildCompletionChip(bool? completed, String label) {
+    final isSelected = _completedFilter == completed;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        setState(() {
+          _completedFilter = selected ? completed : null;
+          // Clear quick filters if status is changed to avoid conflict logic
+          if (completed == true) {
+             _todayOnly = false;
+             _upcomingOnly = false;
+          }
+        });
+      },
     );
   }
 }

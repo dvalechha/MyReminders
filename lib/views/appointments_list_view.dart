@@ -26,6 +26,7 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
   DateTime? _filterEndDate;
   bool _filterTodayOnly = false;
   bool _filterUpcomingOnly = false;
+  bool? _filterCompleted = false; // Default to Active only
 
   @override
   void initState() {
@@ -47,8 +48,15 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
 
   List<Appointment> _filterAppointments(
       List<Appointment> appointments, String searchText) {
-    // Default: Show only active (not completed) appointments
-    var filtered = appointments.where((a) => !a.isCompleted).toList();
+    var filtered = appointments;
+    
+    // Filter by completion status
+    // null = Show All
+    // true = Show Completed Only
+    // false = Show Active Only (Default)
+    if (_filterCompleted != null) {
+      filtered = filtered.where((a) => a.isCompleted == _filterCompleted).toList();
+    }
 
     // Apply search filter
     if (searchText.isNotEmpty) {
@@ -186,21 +194,22 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
                                   onPressed: () async {
                                     final result = await showDialog<Map<String, dynamic>>(
                                       context: context,
-                                      builder: (context) => AppointmentFilterDialog(
-                                        initialStartDate: _filterStartDate,
-                                        initialEndDate: _filterEndDate,
-                                      ),
-                                    );
-                                    if (result != null) {
-                                      setState(() {
-                                        _filterStartDate = result['startDate'] as DateTime?;
-                                        _filterEndDate = result['endDate'] as DateTime?;
-                                        _filterTodayOnly = result['todayOnly'] as bool? ?? false;
-                                        _filterUpcomingOnly = result['upcomingOnly'] as bool? ?? false;
-                                      });
-                                    }
-                                  },
-                                ),
+                                                                    builder: (context) => AppointmentFilterDialog(
+                                                                      initialStartDate: _filterStartDate,
+                                                                      initialEndDate: _filterEndDate,
+                                                                      initialCompleted: _filterCompleted,
+                                                                    ),
+                                                                  );
+                                                                  if (result != null) {
+                                                                    setState(() {
+                                                                      _filterStartDate = result['startDate'] as DateTime?;
+                                                                      _filterEndDate = result['endDate'] as DateTime?;
+                                                                      _filterTodayOnly = result['todayOnly'] as bool? ?? false;
+                                                                      _filterUpcomingOnly = result['upcomingOnly'] as bool? ?? false;
+                                                                      _filterCompleted = result['completed'] as bool?;
+                                                                    });
+                                                                  }
+                                                                },                                ),
                                 // Clear icon
                                 if (_searchText.isNotEmpty)
                                   IconButton(

@@ -25,7 +25,7 @@ class _TasksListViewState extends State<TasksListView> {
   TaskPriority? _filterPriority;
   DateTime? _filterStartDate;
   DateTime? _filterEndDate;
-  bool? _filterCompleted;
+  bool? _filterCompleted = false; // Default to Active only
 
   @override
   void initState() {
@@ -65,11 +65,11 @@ class _TasksListViewState extends State<TasksListView> {
     }
 
     // Apply completion filter
+    // null = Show All
+    // true = Show Completed Only
+    // false = Show Incomplete Only
     if (_filterCompleted != null) {
       filtered = filtered.where((task) => task.isCompleted == _filterCompleted).toList();
-    } else {
-      // Default: Show only active tasks
-      filtered = filtered.where((task) => !task.isCompleted).toList();
     }
 
     // Apply date range filter

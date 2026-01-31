@@ -103,24 +103,17 @@ class SubscriptionProvider with ChangeNotifier {
             final sub = Subscription.fromSupabaseMap(row, categoryEnum);
             mapped[sub.id] = sub; // last-one-wins, removes duplicates by id
           }
-          // Convert mapped values to list and perform additional dedupe by
-          // (serviceName, renewalDate) to catch duplicates that may have
-          // different ids but represent the same subscription.
-          final List<Subscription> deduped = [];
-          final seenKeys = <String>{};
+          
           final items = mapped.values.toList()
             ..sort((a, b) => a.renewalDate.compareTo(b.renewalDate));
-          for (final s in items) {
-            final key = '${s.serviceName.toLowerCase().trim()}|${s.renewalDate.toIso8601String().split('T')[0]}';
-            if (!seenKeys.contains(key)) {
-              seenKeys.add(key);
-              deduped.add(s);
-            }
-          }
-          _subscriptions = deduped;
+          
+          debugPrint('💳 [SubscriptionProvider] Loaded ${items.length} subscriptions from Supabase');
+            
+          _subscriptions = items;
         } catch (e) {
           debugPrint('Warning: Failed to fetch subscriptions from Supabase, falling back to local: $e');
           _subscriptions = await _dbHelper.getAllSubscriptions();
+          debugPrint('💳 [SubscriptionProvider] Loaded ${_subscriptions.length} subscriptions from Local DB');
         }
       
       // Reschedule all reminders on app start
