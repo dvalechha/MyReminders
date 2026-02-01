@@ -41,13 +41,16 @@ This document captures ongoing ideas, decisions, and implementation status for t
     - Refactored `SubscriptionFormView`, `AppointmentFormView`, and `TaskFormView`.
     - Grouped fields into logical cards ("Essentials", "Timing", "Details").
 - **List Views**:
-    - **Multi-Selection**: Long-press to select, batch delete via `SelectionAppBar`.
+    - **Multi-Selection**: Long-press to select, batch delete/renew via `SelectionAppBar`.
+    - **Swipe-to-Renew**: Gesture-based renewal for subscriptions with a dynamic "Silent Safety" undo window.
     - **Tasks**: Leading checkbox, strikethrough for completed.
     - **Appointments**: Grouped by date, trailing checkmark for completion.
     - **Unified Agenda**: Chronological dashboard of all items.
 
 #### 5. Logic & Business Rules
-- **Renewal Logic**: "Sticky End-of-Month" heuristic (Jan 31 -> Feb 28 -> Mar 31).
+- **Renewal Logic**: 
+    - "Sticky End-of-Month" heuristic (Jan 31 -> Feb 28 -> Mar 31).
+    - **"Silent Safety" Undo**: 10-second undo for standard renewals, 30-second undo for early renewals.
 - **Completion**: Tasks and Appointments can be marked complete; lists filter active items by default.
 - **Notifications**: Local notification service for reminders.
 
@@ -62,7 +65,7 @@ lib/
 │   ├── modern_form_field.dart    # Reusable styled input
 │   ├── empty_state_view.dart     # Standard empty state
 │   ├── selection_app_bar.dart    # Multi-select toolbar
-│   └── smart_list_tile.dart      # Base card with visuals
+│   └── subscription_card.dart      # Stateful card with "Ghost" UI for renewals
 ├── views/
 │   ├── subscription_form_view.dart # Grouped card layout
 │   ├── appointment_form_view.dart  # Grouped card layout
@@ -72,7 +75,7 @@ lib/
 ├── providers/
 │   ├── task_provider.dart        # Optimistic CRUD, Batch delete
 │   ├── appointment_provider.dart # Optimistic CRUD, Batch delete
-│   └── subscription_provider.dart
+│   └── subscription_provider.dart  # Handles dynamic renewal logic with timers
 ├── services/
 │   ├── logout_service.dart       # Clean navigation stack reset
 │   └── subscription_service.dart # Renewal calculation logic
@@ -89,13 +92,15 @@ lib/
 - Implemented `EmptyStateView` for better user guidance.
 
 ### 2. Core Functionality
-- **Multi-Selection**: Added `SelectionAppBar` and logic in providers to handle batch deletion.
+- **Gesture-Based Renewals**: Replaced static checkboxes with a swipe-to-renew gesture. Implemented a "Ghost Card" UI with a dynamic undo timer (10s for standard, 30s for early renewals).
+- **Multi-Selection**: Added bulk renewal to the `SelectionAppBar`.
 - **Completion Status**: Added `is_completed` field to Tasks and Appointments, enabling "Mark Done" workflows.
 - **Optimistic Updates**: Rewrote providers to update UI instantly, fixing "flickering" and "reappearing item" bugs.
 
 ### 3. Stability Fixes
 - **Logout**: Fixed navigation stack issue where the logout spinner would hang or show the wrong screen.
 - **Data Integrity**: Enforced safer error handling in providers (rethrow errors instead of silently failing to local DB when online).
+- **Timer Bug**: Fixed a bug where the "Undo" timer was showing negative seconds.
 
 ---
 

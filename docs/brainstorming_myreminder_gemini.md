@@ -52,18 +52,21 @@ We moved away from standard Material Design to a custom, premium aesthetic.
 ### C. List Views (Refactored)
 * **Features:**
     * **Multi-Selection:** Long-press to enter selection mode, allowing batch deletion.
-    * **Selection App Bar:** Custom app bar showing count and actions (Clear, Delete).
-    * **Optimistic UI:** Immediate feedback for add, update, delete, and completion toggle.
-    * **Completion Logic:** Active items shown by default; completed items filtered out (can be toggled).
+    * **Selection App Bar**: Custom app bar showing count and actions (Clear, Delete, Renew).
+    * **Optimistic UI**: Immediate feedback for add, update, delete, and completion toggle.
+    * **Completion Logic**: Active items shown by default; completed items filtered out (can be toggled).
 * **Subscription List:**
-    * Shows renewal status with traffic light colors.
+    - **Swipe-to-Renew**: Replaced checkboxes with a left-to-right swipe gesture to renew.
+    - **"Ghost Card" UI**: When renewed, the card enters a temporary state with a green tint, an "Undo" button, and a progress bar.
+    - **Dynamic Undo Timer**: The "Undo" window is 10 seconds for standard renewals and 30 seconds for early renewals, providing a "Silent Safety" net.
+    - **Bulk Renewal**: The `SelectionAppBar` now includes a "Renew" action for batch renewals.
 * **Appointment List:**
-    * Grouped by date (Today, Tomorrow, Specific Date).
-    * Left-aligned time display.
-    * "Mark Finished" button.
+    - Grouped by date (Today, Tomorrow, Specific Date).
+    - Left-aligned time display.
+    - "Mark Finished" button.
 * **Task List:**
-    * Leading checkbox for completion.
-    * Strikethrough for completed items.
+    - Leading checkbox for completion.
+    - Strikethrough for completed items.
 
 ---
 
@@ -82,12 +85,12 @@ We moved away from standard Material Design to a custom, premium aesthetic.
 * **Completed:**
     * Visual Polish (Modern Soft design applied to all forms and lists).
     * Form Refactoring (Grouped cards, consistent inputs).
+    - **Gesture-Based Renewal**: Implemented swipe-to-renew and bulk renewals with a dynamic "Silent Safety" undo window.
     * Multi-Selection & Batch Deletion.
     * Task/Appointment Completion Logic.
     * Empty States.
     * Logout Bug Fix (Clean navigation stack reset).
     * Appointment "Reappearing" Bug Fix (Optimistic update logic correction).
 * **Pending / Next Up:**
-    * **"List Subscription" Feature:** (User is currently brainstorming this).
-    * **Recurring Appointments/Tasks:** Advanced recurrence logic.
+    * **Recurring Appointments/Tasks**: Advanced recurrence logic.
     * **Calendar Sync:** Integration with device calendar.

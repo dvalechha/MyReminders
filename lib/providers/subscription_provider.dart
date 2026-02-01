@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/subscription.dart';
@@ -18,9 +19,16 @@ class SubscriptionProvider with ChangeNotifier {
 
   List<Subscription> _subscriptions = [];
   bool _isLoading = false;
+  final Set<String> _pendingRenewals = {};
+  final Map<String, Timer> _renewalTimers = {};
 
   List<Subscription> get subscriptions => _subscriptions;
   bool get isLoading => _isLoading;
+  Set<String> get pendingRenewals => _pendingRenewals;
+  Map<String, Duration> get pendingRenewalDurations => _pendingRenewalDurations;
+
+  final Map<String, Duration> _pendingRenewalDurations = {};
+
 
   // Calculate total monthly spend
   double get totalMonthlySpend {
@@ -44,6 +52,39 @@ class SubscriptionProvider with ChangeNotifier {
       }
     });
   }
+
+  // Stage 1: Start the renewal process (Undo state)
+  void startRenewSubscription(String id) {
+    if (_pendingRenewals.contains(id)) return;
+
+    final subscription = _subscriptions.firstWhere((s) => s.id == id);
+    final now = DateTime.now();
+
+    // Compare date parts only, ignoring time, in LOCAL timezone
+    final localRenewal = subscription.renewalDate.toLocal();
+    final renewalDate = DateTime(localRenewal.year, localRenewal.month, localRenewal.day);
+    final today = DateTime(now.year, now.month, now.day);
+    
+    // An early renewal is if the renewal date is after today.
+    final isEarlyRenewal = renewalDate.isAfter(today);
+    
+    final duration = isEarlyRenewal 
+        ? const Duration(seconds: 30) 
+        : const Duration(seconds: 10);
+
+    _pendingRenewals.add(id);
+    _pendingRenewalDurations[id] = duration;
+    notifyListeners();
+
+    // Cancel any existing timer for this ID
+    _renewalTimers[id]?.cancel();
+    
+    // Start the timer with the calculated duration
+    _renewalTimers[id] = Timer(duration, () {
+      _confirmRenewSubscription(id);
+    });
+  }
+
 
   // Load all subscriptions from database
   Future<void> loadSubscriptions({bool forceRefresh = false}) async {
@@ -126,8 +167,14 @@ class SubscriptionProvider with ChangeNotifier {
     }
   }
 
-  // Renew subscription
-  Future<void> renewSubscription(String id, Subscription currentSubscription) async {
+  // Stage 2: Confirm the renewal after timer expires
+  Future<void> _confirmRenewSubscription(String id) async {
+    // Ensure it's still pending before proceeding
+    if (!_pendingRenewals.contains(id)) return;
+    
+    final currentSubscription = _subscriptions.firstWhere((s) => s.id == id,
+        orElse: () => throw Exception('Subscription not found for renewal'));
+        
     try {
       final SubscriptionService service = SubscriptionService();
       
@@ -159,11 +206,10 @@ class SubscriptionProvider with ChangeNotifier {
         debugPrint('Warning: Failed to update local subscription renewal: $e');
       }
 
-      // 3. State Refresh (Optimistic)
+      // 3. State Refresh
       final index = _subscriptions.indexWhere((s) => s.id == id);
       if (index != -1) {
         _subscriptions[index] = updatedSub;
-        notifyListeners();
       }
       
       // Reschedule notification
@@ -180,9 +226,27 @@ class SubscriptionProvider with ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error renewing subscription: $e');
-      rethrow;
+      // NOTE: Consider a rollback mechanism or error state for the UI
+    } finally {
+      // Clean up
+      _pendingRenewals.remove(id);
+      _renewalTimers.remove(id);
+      _pendingRenewalDurations.remove(id);
+      notifyListeners();
     }
   }
+
+  // Stage 3: Undo the renewal
+  void undoRenewSubscription(String id) {
+    if (!_pendingRenewals.contains(id)) return;
+
+    _renewalTimers[id]?.cancel();
+    _renewalTimers.remove(id);
+    _pendingRenewals.remove(id);
+    _pendingRenewalDurations.remove(id);
+    notifyListeners();
+  }
+
 
   // Add new subscription
   Future<String> addSubscription(Subscription subscription) async {
@@ -429,7 +493,24 @@ class SubscriptionProvider with ChangeNotifier {
   void clearState() {
     _subscriptions = [];
     _isLoading = false;
+    _pendingRenewals.clear();
+    _renewalTimers.values.forEach((timer) => timer.cancel());
+    _renewalTimers.clear();
     notifyListeners();
+  }
+
+  // Bulk renew selected subscriptions
+  void renewSelectedSubscriptions(Set<String> ids) {
+    for (final id in ids) {
+      startRenewSubscription(id);
+    }
+  }
+
+  @override
+  void dispose() {
+    // Cancel all timers to prevent memory leaks
+    _renewalTimers.values.forEach((timer) => timer.cancel());
+    super.dispose();
   }
 }
 

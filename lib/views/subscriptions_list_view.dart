@@ -206,6 +206,10 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
         scrolledUnderElevation: 0,
         actions: [
           IconButton(
+            icon: const Icon(Icons.autorenew),
+            onPressed: _renewSelectedItems,
+          ),
+          IconButton(
             icon: const Icon(Icons.delete_outline),
             onPressed: _deleteSelectedItems,
           ),
@@ -317,20 +321,26 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
     }
   }
   
+  void _renewSelectedItems() {
+    if (_selectedIds.isEmpty) return;
+    
+    final provider = Provider.of<SubscriptionProvider>(context, listen: false);
+    provider.renewSelectedSubscriptions(_selectedIds);
+    
+    // Show a confirmation and clear selection
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Renewing selected items...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    _clearSelection();
+  }
+  
   void _deleteSelectedItems() {
     if (_selectedIds.isEmpty) return;
     
     final provider = Provider.of<SubscriptionProvider>(context, listen: false);
-    final deletedSubscriptions = <Subscription>[];
-    
-    // Store deleted subscriptions for undo
-    for (final id in _selectedIds) {
-      final subscription = provider.subscriptions.firstWhere(
-        (s) => s.id == id,
-        orElse: () => throw Exception('Subscription not found'),
-      );
-      deletedSubscriptions.add(subscription);
-    }
     
     // Delete all selected subscriptions
     for (final id in _selectedIds) {
@@ -342,18 +352,9 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
     
     // Show snackbar with undo option
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Items deleted'),
-        action: SnackBarAction(
-          label: 'Undo',
-          onPressed: () {
-            // Restore deleted subscriptions
-            for (final subscription in deletedSubscriptions) {
-              provider.addSubscription(subscription);
-            }
-          },
-        ),
-        duration: const Duration(seconds: 3),
+      const SnackBar(
+        content: Text('Items deleted'),
+        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -524,38 +525,22 @@ class _SubscriptionsListViewState extends State<SubscriptionsListView> {
                         ? card
                         : Dismissible(
                             key: Key(subscription.id),
-                            direction: DismissDirection.endToStart,
+                            direction: DismissDirection.startToEnd,
                             background: Container(
-                              alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.only(right: 20),
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.only(left: 20),
                               decoration: BoxDecoration(
-                                color: Colors.red,
+                                color: Colors.green.shade50,
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Icon(Icons.delete, color: Colors.white),
+                              child: const Icon(Icons.autorenew, color: Colors.green),
                             ),
                             confirmDismiss: (direction) async {
-                              return await showDialog(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('Delete Subscription'),
-                                  content: Text(
-                                      'Are you sure you want to delete ${subscription.serviceName}?'),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                            onDismissed: (direction) {
-                              provider.deleteSubscription(subscription.id);
+                              if (direction == DismissDirection.startToEnd) {
+                                provider.startRenewSubscription(subscription.id);
+                                return false; // Don't actually dismiss the card
+                              }
+                              return false;
                             },
                             child: card,
                           ),
