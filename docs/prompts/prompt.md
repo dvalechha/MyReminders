@@ -1,58 +1,21 @@
-# Custos Implementation Revert - Date/Time UI
+# Custos Task List - Gesture Refactor.md
 
-## 1. Add/Edit Subscription Screen (Split Row)
-**Goal:** Restore the two-field layout where Date and Time are side-by-side.
+## Task List Screen: Swipe-to-Complete & Checkbox Removal
+**Goal:** Replace checkboxes with a Left-to-Right swipe gesture for completion, mirroring the Subscription renewal logic.
 
-> "Act as a Senior Flutter Developer. Refactor the `SubscriptionFormView` to restore the split date-time layout.
+> "Act as a Senior Flutter Developer. Refactor the `TaskListView` and `TaskListItem` widgets.
 > 
-> **Layout Requirements:**
-> - Inside the 'Timing' card, create a `Row` with two `Expanded` children.
-> - Left field: `ModernFormField` with label 'Renewal Date'.
-> - Right field: `ModernFormField` with label 'Time'.
-> - Style: Labels must be outside and above the `grey[100]` input containers.
+> **Visual Changes:**
+> - Remove the `Checkbox` widget from the Task items. The UI should be clean and 'Modern Soft' style.
+> - Ensure the task title and priority indicator are clearly visible without the checkbox clutter.
 > 
-> **Interaction Logic:**
-> - Tapping 'Renewal Date' must open a Bottom Sheet with a `CupertinoDatePicker` in `date` mode.
-> - Tapping the 'Time' field must open a Bottom Sheet with a `CupertinoDatePicker` in `time` mode.
-> - Both selections must update the single `renewal_date` DateTime object in the `SubscriptionProvider`.
+> **Gesture Implementation (The Subscription Model):**
+> - Implement a **Left-to-Right swipe gesture** to mark a task as 'Completed'.
+> - **Silent Safety/Undo Logic:** When swiped, the task should not disappear immediately. Show a 'Ghost Card' with an 'Undo' button and a 10-second timer (matching the Subscription renewal behavior).
+> - Only after the timer expires should the `TaskProvider` update the database (`is_completed = true`).
 > 
-> **Output:** Complete code for the Subscription form view."
-
----
-
-## 2. Add/Edit Appointment Screen (Split Row)
-**Goal:** Restore the two-field side-by-side layout for appointments.
-
-> "Act as a Senior Flutter Developer. Refactor the `AppointmentFormView` to use the split-field timing layout.
+> **Preserve Existing Logic:**
+> - **CRITICAL:** Do NOT break the 'Gmail-style' long-press. Long-pressing a task must still activate the `SelectionProvider` and the `SelectionAppBar` for bulk operations.
+> - Tapping an item (not swiping or long-pressing) should still navigate to the Edit screen.
 > 
-> **Layout Requirements:**
-> - Provide a `Row` containing two `Expanded` widgets.
-> - Left widget: `ModernFormField` for 'Date' with a calendar icon.
-> - Right widget: `ModernFormField` for 'Time' with a clock icon.
-> - Container Style: White background, `BorderRadius.circular(12)`, no border stroke.
-> 
-> **Interaction Logic:**
-> - Date field triggers a bottom sheet wheel in `date` mode.
-> - Time field triggers a bottom sheet wheel in `time` mode.
-> - Ensure both update the `start_time` in the `AppointmentProvider`.
-> 
-> **Output:** Updated screen code with independent Date and Time triggers."
-
----
-
-## 3. Add/Edit Task Screen (Unified Field)
-**Goal:** Restore the single, full-width field that handles both date and time selection at once.
-
-> "Act as a Senior Flutter Developer. Refactor the `TaskFormView` to use a unified date-time picker.
-> 
-> **Layout Requirements:**
-> - Create one full-width `ModernFormField` labeled 'Due Date & Time'.
-> - Use the hint text 'Select date and time'.
-> - Style: Use the 'Modern Soft' grey container with labels above.
-> 
-> **Interaction Logic:**
-> - Tapping this field must open a Bottom Sheet containing a `CupertinoDatePicker` set to `dateAndTime` mode.
-> - The picker must display the Date wheel and Time wheel side-by-side in one view.
-> - Update the `due_date` field in `TaskProvider` upon clicking 'Done'.
-> 
-> **Output:** Production-ready code for the Task Form."
+> **Output:** Provide the updated code for `TaskListView` and the logic for the swipe-to-complete 'Ghost Card' state."

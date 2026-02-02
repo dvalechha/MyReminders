@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 import 'package:provider/provider.dart';
 import '../providers/task_provider.dart';
 import '../models/task.dart';
-import '../widgets/smart_list_tile.dart';
+import '../widgets/task_card.dart';
 import '../widgets/task_filter_dialog.dart';
 import '../widgets/empty_state_view.dart';
 import '../widgets/selection_app_bar.dart';
@@ -339,24 +338,12 @@ class _TasksListViewState extends State<TasksListView> {
     TaskProvider provider,
   ) {
     final isSelected = provider.selectedIds.contains(task.id);
-    final statusColor = getTaskStatusColor(
-      priority: task.priority,
-      dueDate: task.dueDate,
-    );
 
-    // Determine due date text color
-    Color? dueDateColor;
-    if (task.dueDate != null) {
-      final now = DateTime.now();
-      if (task.dueDate!.isBefore(now) && !isSameDay(task.dueDate, now)) {
-        dueDateColor = Colors.red; // Overdue
-      } else if (isSameDay(task.dueDate, now)) {
-        dueDateColor = Colors.orange; // Today
-      }
-    }
+    // Don't allow swipe if task is already completed
+    final canSwipe = !task.isCompleted && !provider.isSelectionMode;
 
-    final cardContent = SmartListTile(
-      statusColor: statusColor,
+    final cardContent = TaskCard(
+      task: task,
       isSelected: isSelected,
       onTap: () {
         if (provider.isSelectionMode) {
@@ -376,136 +363,29 @@ class _TasksListViewState extends State<TasksListView> {
         HapticFeedback.lightImpact();
         provider.toggleSelection(task.id);
       },
-      padding: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Row(
-          children: [
-            // Leading: Circular Checkbox or Selection Check
-            GestureDetector(
-              onTap: () {
-                if (provider.isSelectionMode) {
-                  provider.toggleSelection(task.id);
-                } else {
-                  provider.toggleTaskCompletion(task.id);
-                }
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isSelected 
-                      ? const Color(0xFF2D62ED) 
-                      : (task.isCompleted ? statusColor : Colors.transparent),
-                  border: Border.all(
-                    color: isSelected 
-                        ? const Color(0xFF2D62ED)
-                        : (task.isCompleted ? statusColor : Colors.grey[400]!),
-                    width: 2,
-                  ),
-                ),
-                child: (isSelected || task.isCompleted)
-                    ? const Icon(
-                        Icons.check,
-                        size: 16,
-                        color: Colors.white,
-                      )
-                    : null,
-              ),
-            ),
-            const SizedBox(width: 16),
-            // Center: Title and Due Date
-            Expanded(
-              child: Opacity(
-                opacity: task.isCompleted ? 0.6 : 1.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Row 1: Task Title (Bold, size 16) - strikethrough if completed
-                    Text(
-                      task.title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                        decoration: task.isCompleted
-                            ? TextDecoration.lineThrough
-                            : TextDecoration.none,
-                      ),
-                    ),
-                    // Row 2: Due Date (Grey, size 12, or Red/Orange if today/overdue)
-                    if (task.dueDate != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        formatTaskDueDate(task.dueDate),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: dueDateColor ?? Colors.grey[700],
-                          fontWeight: FontWeight.w400,
-                          decoration: task.isCompleted
-                              ? TextDecoration.lineThrough
-                              : TextDecoration.none,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            // Trailing: Chevron right (adaptive icon)
-            if (!provider.isSelectionMode)
-              Platform.isIOS
-                  ? const Icon(
-                      CupertinoIcons.chevron_right,
-                      size: 16,
-                      color: Colors.grey,
-                    )
-                  : const Icon(
-                      Icons.arrow_forward_ios,
-                      size: 14,
-                      color: Colors.grey,
-                    ),
-          ],
-        ),
-      ),
     );
 
-    // Wrap in Dismissible for swipe-to-delete
+    // Wrap in Dismissible for swipe-to-complete (left to right)
     return Dismissible(
       key: Key(task.id),
-      direction: provider.isSelectionMode ? DismissDirection.none : DismissDirection.endToStart,
+      direction: canSwipe ? DismissDirection.startToEnd : DismissDirection.none,
       background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        margin: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.red,
+          color: Colors.green,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: const Icon(Icons.check_circle, color: Colors.white, size: 28),
       ),
       confirmDismiss: (direction) async {
-        return await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete Task'),
-            content: Text('Are you sure you want to delete ${task.title}?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Delete', style: TextStyle(color: Colors.red)),
-              ),
-            ],
-          ),
-        );
-      },
-      onDismissed: (direction) {
-        provider.deleteTask(task.id);
+        if (direction == DismissDirection.startToEnd) {
+          // Trigger completion with timer, but don't actually dismiss
+          await provider.startTaskCompletion(task.id);
+          return false; // Don't remove from list
+        }
+        return false;
       },
       child: cardContent,
     );

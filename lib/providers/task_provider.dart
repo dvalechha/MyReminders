@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/task.dart';
@@ -20,6 +21,11 @@ class TaskProvider with ChangeNotifier {
   bool _isLoading = false;
   final Set<String> _selectedIds = {};
 
+  // Completion timer state (similar to subscription renewals)
+  final Map<String, Timer> _completionTimers = {};
+  final Map<String, int> _pendingCompletionDurations = {};
+  final Set<String> _pendingCompletions = {};
+
   List<Task> get tasks => _tasks;
   
   // New getters for active/completed items
@@ -29,6 +35,10 @@ class TaskProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isSelectionMode => _selectedIds.isNotEmpty;
   Set<String> get selectedIds => _selectedIds;
+
+  // Completion timer getters
+  bool isTaskPendingCompletion(String taskId) => _pendingCompletions.contains(taskId);
+  int? getCompletionTimerDuration(String taskId) => _pendingCompletionDurations[taskId];
 
   Future<void> toggleCompletion(String id, bool status) async {
     try {
@@ -168,18 +178,12 @@ class TaskProvider with ChangeNotifier {
           // Convert to list and sort
           final items = mapped.values.toList();
           items.sort((a, b) {
-            // Sort by completion (incomplete first), then overdue, then due date, then priority
+            // Sort by completion (incomplete first), then due date, then priority
             if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
-            
-            final now = DateTime.now();
+
             final aDate = a.dueDate ?? DateTime.fromMillisecondsSinceEpoch(0); // far past
             final bDate = b.dueDate ?? DateTime.fromMillisecondsSinceEpoch(0);
-            
-            // If both incomplete, checking overdue logic might be complex here, 
-            // but just sorting by due date is consistent with repository.
-            // Repostory sorts by due_date ascending.
-            // Let's rely on simple date sort here or keep existing sort?
-            // Existing sort in View is robust. Here just basic sort.
+
             return aDate.compareTo(bDate);
           });
           
@@ -191,10 +195,10 @@ class TaskProvider with ChangeNotifier {
           _tasks = await _dbHelper.getAllTasks();
           debugPrint('✅ [TaskProvider] Loaded ${_tasks.length} tasks from Local DB');
         }
-      
+
       await _rescheduleAllReminders();
     } catch (e) {
-      print('Error loading tasks: $e');
+      debugPrint('❌ Error loading tasks: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -318,7 +322,7 @@ class TaskProvider with ChangeNotifier {
       await loadTasks(forceRefresh: true);
       return updatedTask.id;
     } catch (e) {
-      print('Error adding task: $e');
+      debugPrint('❌ Error adding task: $e');
       // Rollback optimistic update
       _tasks.removeWhere((t) => t.id == task.id);
       notifyListeners();
@@ -407,28 +411,92 @@ class TaskProvider with ChangeNotifier {
 
       await loadTasks(forceRefresh: true);
     } catch (e) {
-      print('Error updating task: $e');
+      debugPrint('❌ Error updating task: $e');
       // Rollback by reloading from source (simpler than manual revert)
       await loadTasks(forceRefresh: true);
       rethrow;
     }
   }
 
+  /// Initiates task completion with a 10-second "Silent Safety" undo window
+  Future<void> startTaskCompletion(String taskId) async {
+    try {
+      final task = _tasks.firstWhere((t) => t.id == taskId);
+
+      // Don't start completion if already completed or already pending
+      if (task.isCompleted || _pendingCompletions.contains(taskId)) {
+        return;
+      }
+
+      // Set 10-second undo timer for task completion
+      const timerDuration = 10;
+      _pendingCompletionDurations[taskId] = timerDuration;
+      _pendingCompletions.add(taskId);
+      notifyListeners();
+
+      debugPrint('✅ [TaskProvider] Started completion timer for task: ${task.title} (${timerDuration}s)');
+
+      // Start countdown timer
+      _completionTimers[taskId] = Timer(Duration(seconds: timerDuration), () {
+        confirmTaskCompletion(taskId);
+      });
+    } catch (e) {
+      debugPrint('❌ Error starting task completion: $e');
+    }
+  }
+
+  /// Confirms task completion after timer expires
+  Future<void> confirmTaskCompletion(String taskId) async {
+    try {
+      final task = _tasks.firstWhere((t) => t.id == taskId);
+      final updatedTask = task.copyWith(isCompleted: true);
+
+      debugPrint('✅ [TaskProvider] Confirming completion for task: ${task.title}');
+
+      // Update the task
+      await updateTask(updatedTask);
+
+      // Clean up timer state
+      _completionTimers.remove(taskId);
+      _pendingCompletionDurations.remove(taskId);
+      _pendingCompletions.remove(taskId);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error confirming task completion: $e');
+      // Clean up timer state even on error
+      _completionTimers.remove(taskId);
+      _pendingCompletionDurations.remove(taskId);
+      _pendingCompletions.remove(taskId);
+      notifyListeners();
+    }
+  }
+
+  /// Cancels pending completion (undo)
+  void undoTaskCompletion(String taskId) {
+    debugPrint('↩️ [TaskProvider] Undo completion for task ID: $taskId');
+
+    _completionTimers[taskId]?.cancel();
+    _completionTimers.remove(taskId);
+    _pendingCompletionDurations.remove(taskId);
+    _pendingCompletions.remove(taskId);
+    notifyListeners();
+  }
+
   Future<void> toggleTaskCompletion(String taskId) async {
     try {
       final task = _tasks.firstWhere((t) => t.id == taskId);
       final updatedTask = task.copyWith(isCompleted: !task.isCompleted);
-      
+
       // Optimistic update for toggle
       final index = _tasks.indexWhere((t) => t.id == taskId);
       if (index != -1) {
         _tasks[index] = updatedTask;
         notifyListeners();
       }
-      
+
       await updateTask(updatedTask);
     } catch (e) {
-      print('Error toggling task completion: $e');
+      debugPrint('❌ Error toggling task completion: $e');
     }
   }
 
@@ -466,7 +534,7 @@ class TaskProvider with ChangeNotifier {
 
       await loadTasks(forceRefresh: true);
     } catch (e) {
-      print('Error deleting task: $e');
+      debugPrint('❌ Error deleting task: $e');
       // Rollback: reload to restore deleted item
       await loadTasks(forceRefresh: true);
       rethrow;
@@ -481,7 +549,26 @@ class TaskProvider with ChangeNotifier {
   void clearState() {
     _tasks = [];
     _isLoading = false;
+
+    // Clean up all timers
+    for (final timer in _completionTimers.values) {
+      timer.cancel();
+    }
+    _completionTimers.clear();
+    _pendingCompletionDurations.clear();
+    _pendingCompletions.clear();
+
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    // Clean up all timers on provider disposal
+    for (final timer in _completionTimers.values) {
+      timer.cancel();
+    }
+    _completionTimers.clear();
+    super.dispose();
   }
 }
 

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 import 'package:provider/provider.dart';
@@ -8,6 +7,7 @@ import '../providers/appointment_provider.dart';
 import '../models/appointment.dart';
 import '../utils/appointment_status_helper.dart';
 import '../widgets/appointment_filter_dialog.dart';
+import '../widgets/appointment_card.dart';
 import '../widgets/empty_state_view.dart';
 import '../widgets/selection_app_bar.dart';
 import 'appointment_form_view.dart';
@@ -332,17 +332,24 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
         
         // Header Text Logic
         String headerText;
+        Color headerColor;
         final now = DateTime.now();
         final today = DateTime(now.year, now.month, now.day);
         final tomorrow = today.add(const Duration(days: 1));
         final dateToCheck = DateTime(date.year, date.month, date.day);
 
-        if (dateToCheck == today) {
+        if (dateToCheck.isAtSameMomentAs(today)) {
           headerText = 'Today';
-        } else if (dateToCheck == tomorrow) {
+          headerColor = Colors.orange;
+        } else if (dateToCheck.isAtSameMomentAs(tomorrow)) {
           headerText = 'Tomorrow';
+          headerColor = const Color(0xFF2D62ED);
+        } else if (dateToCheck.isAfter(today)) {
+          headerText = DateFormat('EEE, MMM d').format(date);
+          headerColor = const Color(0xFF2D62ED);
         } else {
           headerText = DateFormat('EEE, MMM d').format(date);
+          headerColor = Colors.grey;
         }
 
         return Column(
@@ -353,10 +360,10 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text(
                 headerText,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: Colors.grey,
+                  color: headerColor,
                   letterSpacing: 0.5,
                 ),
               ),
@@ -376,7 +383,7 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
     Appointment appointment,
     AppointmentProvider provider,
   ) {
-    // Logic for color bar
+    // Determine status color
     // If Date is Today: Orange (Urgency/Attention)
     // If Date is Future: Blue (Standard/Safe)
     // If Date is Past: Grey
@@ -394,10 +401,13 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
       statusColor = const Color(0xFF2D62ED); // Brand Blue
     }
 
-    const brandBlue = Color(0xFF2D62ED);
-    const selectedBg = Color(0xFFF0F4FF);
+    // Don't allow swipe if appointment is already completed
+    final canSwipe = !appointment.isCompleted && !provider.isSelectionMode;
 
-    final cardContent = InkWell(
+    final cardContent = AppointmentCard(
+      appointment: appointment,
+      isSelected: isSelected,
+      statusColor: statusColor,
       onTap: () {
         if (provider.isSelectionMode) {
           provider.toggleSelection(appointment.id);
@@ -416,192 +426,29 @@ class _AppointmentsListViewState extends State<AppointmentsListView> {
         HapticFeedback.lightImpact();
         provider.toggleSelection(appointment.id);
       },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? selectedBg : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: isSelected ? Border.all(color: brandBlue, width: 1.5) : null,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. Visual Status Indicator (Color Bar)
-              Container(
-                width: 6,
-                color: statusColor,
-              ),
-              
-              // 2. Content
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      // Time Column
-                      SizedBox(
-                        width: 65,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              DateFormat('h:mm').format(appointment.dateTime),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            Text(
-                              DateFormat('a').format(appointment.dateTime),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      
-                      // Divider line
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: Colors.grey[200],
-                        margin: const EdgeInsets.only(right: 16),
-                      ),
-
-                      // Details Column
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              appointment.title,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                                decoration: appointment.isCompleted ? TextDecoration.lineThrough : null,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (appointment.location != null && appointment.location!.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.location_on,
-                                    size: 12,
-                                    color: Colors.grey[600],
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      appointment.location!,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[600],
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-
-                      // Completion Button (only when not in selection mode)
-                      if (!provider.isSelectionMode)
-                        IconButton(
-                          icon: Icon(
-                            appointment.isCompleted ? Icons.check_circle : Icons.check_circle_outline,
-                            color: appointment.isCompleted ? Colors.green : Colors.grey,
-                          ),
-                          onPressed: () {
-                            provider.toggleCompletion(appointment.id, !appointment.isCompleted);
-                          },
-                        ),
-
-                      // Chevron or Check
-                      if (provider.isSelectionMode)
-                        Icon(
-                          isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                          color: brandBlue,
-                        )
-                      else if (Platform.isIOS)
-                        const Icon(
-                          CupertinoIcons.chevron_right,
-                          size: 16,
-                          color: Colors.grey,
-                        )
-                      else
-                        const Icon(
-                          Icons.arrow_forward_ios,
-                          size: 14,
-                          color: Colors.grey,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
 
-    // Wrap in Dismissible for swipe-to-delete
+    // Wrap in Dismissible for swipe-to-complete (left to right)
     return Dismissible(
       key: Key(appointment.id),
-      direction: provider.isSelectionMode ? DismissDirection.none : DismissDirection.endToStart,
+      direction: canSwipe ? DismissDirection.startToEnd : DismissDirection.none,
       background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.red,
+          color: Colors.green,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: const Icon(Icons.check_circle, color: Colors.white, size: 28),
       ),
       confirmDismiss: (direction) async {
-        return await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete Appointment'),
-            content: Text('Are you sure you want to delete ${appointment.title}?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Delete', style: TextStyle(color: Colors.red)),
-              ),
-            ],
-          ),
-        );
-      },
-      onDismissed: (direction) {
-        provider.deleteAppointment(appointment.id);
+        if (direction == DismissDirection.startToEnd) {
+          // Trigger completion with timer, but don't actually dismiss
+          await provider.startAppointmentCompletion(appointment.id);
+          return false; // Don't remove from list
+        }
+        return false;
       },
       child: cardContent,
     );

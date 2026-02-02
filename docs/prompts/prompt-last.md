@@ -7,6 +7,13 @@ The screen should have two states:
 1.  **Default State (No Input):** Display a "Today's Snapshot" widget summarizing the user's most important upcoming items.
 2.  **Active State (User Typing):** When the user starts typing in the Omnibox, the snapshot will be replaced by the existing animation/preview box.
 
+**Recent UX Updates (To be maintained):**
+*   **Self-Explanatory Color Coding:** The app now uses a consistent color-coding system to indicate status/urgency:
+    *   **Orange:** Today's items.
+    *   **Brand Blue (#2D62ED):** Upcoming/Future items.
+    *   **Grey:** Past items.
+*   **Implementation Note:** Section headers in lists and the time/date text inside cards should use these specific colors to reinforce the meaning of the status indicators. Ensure the new `UnifiedAgendaView` and `TodaysSnapshotView` follow this pattern.
+
 **Affected Files:**
 *   `lib/views/welcome_view.dart` (Major modifications)
 *   `lib/providers/subscription_provider.dart` (Data access)
@@ -27,7 +34,7 @@ The screen should have two states:
 4.  In its state, fetch all data from the `SubscriptionProvider`, `AppointmentProvider`, and `TaskProvider`.
 5.  Combine the items from all three sources into a single list.
 6.  Sort this master list chronologically based on the relevant date (renewal date, appointment time, due date).
-7.  Display the sorted items in a `ListView`, where each item is styled distinctly based on its type (e.g., using different icons and text formatting for subscriptions, appointments, and tasks).
+7.  Display the sorted items in a `ListView`, where each item is styled distinctly based on its type (e.g., using different icons and text formatting for subscriptions, appointments, and tasks). **Crucial:** Use the color-coding pattern (Orange/Blue/Grey) for section headers and date text as implemented in the Appointments list.
 
 **Part 2: Create the "Today's Snapshot" Widget**
 
@@ -39,7 +46,7 @@ The screen should have two states:
     *   **Due Today:** The most important task due today.
     *   **Renewing Soon:** The next subscription that is renewing (today or tomorrow).
 5.  Design the widget as a card (e.g., using `Card` or a `Container` with decoration).
-6.  Display the selected items with appropriate icons (e.g., `Icons.calendar_today`, `Icons.check_box_outline_blank`, `Icons.autorenew`).
+6.  Display the selected items with appropriate icons (e.g., `Icons.calendar_today`, `Icons.check_box_outline_blank`, `Icons.autorenew`). Use appropriate colors for status reinforcement.
 7.  Add a "View Full Agenda ->" `TextButton` or similar interactive element. Tapping anywhere on the card should navigate to the `UnifiedAgendaView`.
 
 **Part 3: Update the Welcome View**

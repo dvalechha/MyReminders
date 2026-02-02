@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/appointment.dart';
@@ -19,6 +20,11 @@ class AppointmentProvider with ChangeNotifier {
   bool _isLoading = false;
   final Set<String> _selectedIds = {};
 
+  // Completion timer state (similar to task completion)
+  final Map<String, Timer> _completionTimers = {};
+  final Map<String, int> _pendingCompletionDurations = {};
+  final Set<String> _pendingCompletions = {};
+
   List<Appointment> get appointments => _appointments;
   
   List<Appointment> get activeItems => _appointments.where((a) => !a.isCompleted).toList();
@@ -27,6 +33,10 @@ class AppointmentProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isSelectionMode => _selectedIds.isNotEmpty;
   Set<String> get selectedIds => _selectedIds;
+
+  // Completion timer getters
+  bool isAppointmentPendingCompletion(String appointmentId) => _pendingCompletions.contains(appointmentId);
+  int? getCompletionTimerDuration(String appointmentId) => _pendingCompletionDurations[appointmentId];
 
   Future<void> toggleCompletion(String id, bool status) async {
     try {
@@ -177,7 +187,7 @@ class AppointmentProvider with ChangeNotifier {
       
       await _rescheduleAllReminders();
     } catch (e) {
-      print('Error loading appointments: $e');
+      debugPrint('❌ Error loading appointments: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -345,7 +355,7 @@ class AppointmentProvider with ChangeNotifier {
       // No reload to prevent UI flash
       return updatedAppointment.id;
     } catch (e) {
-      print('Error adding appointment: $e');
+      debugPrint('❌ Error adding appointment: $e');
       // Rollback optimistic update
       _appointments.removeWhere((a) => a.id == appointment.id);
       notifyListeners();
@@ -445,7 +455,7 @@ class AppointmentProvider with ChangeNotifier {
 
       // No reload
     } catch (e) {
-      print('Error updating appointment: $e');
+      debugPrint('❌ Error updating appointment: $e');
       // Rollback: reload
       await loadAppointments(forceRefresh: true);
       rethrow;
@@ -489,7 +499,7 @@ class AppointmentProvider with ChangeNotifier {
 
       // No reload
     } catch (e) {
-      print('Error deleting appointment: $e');
+      debugPrint('❌ Error deleting appointment: $e');
       // Rollback: reload
       await loadAppointments(forceRefresh: true);
       rethrow;
@@ -500,11 +510,94 @@ class AppointmentProvider with ChangeNotifier {
     return await _dbHelper.getAppointmentById(id);
   }
 
+  /// Initiates appointment completion with a 10-second "Silent Safety" undo window
+  Future<void> startAppointmentCompletion(String appointmentId) async {
+    try {
+      final appointment = _appointments.firstWhere((a) => a.id == appointmentId);
+
+      // Don't start completion if already completed or already pending
+      if (appointment.isCompleted || _pendingCompletions.contains(appointmentId)) {
+        return;
+      }
+
+      // Set 10-second undo timer for appointment completion
+      const timerDuration = 10;
+      _pendingCompletionDurations[appointmentId] = timerDuration;
+      _pendingCompletions.add(appointmentId);
+      notifyListeners();
+
+      debugPrint('✅ [AppointmentProvider] Started completion timer for appointment: ${appointment.title} (${timerDuration}s)');
+
+      // Start countdown timer
+      _completionTimers[appointmentId] = Timer(Duration(seconds: timerDuration), () {
+        confirmAppointmentCompletion(appointmentId);
+      });
+    } catch (e) {
+      debugPrint('❌ Error starting appointment completion: $e');
+    }
+  }
+
+  /// Confirms appointment completion after timer expires
+  Future<void> confirmAppointmentCompletion(String appointmentId) async {
+    try {
+      final appointment = _appointments.firstWhere((a) => a.id == appointmentId);
+      final updatedAppointment = appointment.copyWith(isCompleted: true);
+
+      debugPrint('✅ [AppointmentProvider] Confirming completion for appointment: ${appointment.title}');
+
+      // Update the appointment
+      await updateAppointment(updatedAppointment);
+
+      // Clean up timer state
+      _completionTimers.remove(appointmentId);
+      _pendingCompletionDurations.remove(appointmentId);
+      _pendingCompletions.remove(appointmentId);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error confirming appointment completion: $e');
+      // Clean up timer state even on error
+      _completionTimers.remove(appointmentId);
+      _pendingCompletionDurations.remove(appointmentId);
+      _pendingCompletions.remove(appointmentId);
+      notifyListeners();
+    }
+  }
+
+  /// Cancels pending completion (undo)
+  void undoAppointmentCompletion(String appointmentId) {
+    debugPrint('↩️ [AppointmentProvider] Undo completion for appointment ID: $appointmentId');
+
+    _completionTimers[appointmentId]?.cancel();
+    _completionTimers.remove(appointmentId);
+    _pendingCompletionDurations.remove(appointmentId);
+    _pendingCompletions.remove(appointmentId);
+    notifyListeners();
+  }
+
   /// Clear all in-memory state (for logout)
   void clearState() {
     _appointments = [];
     _isLoading = false;
+
+    // Clean up all timers
+    for (final timer in _completionTimers.values) {
+      timer.cancel();
+    }
+    _completionTimers.clear();
+    _pendingCompletionDurations.clear();
+    _pendingCompletions.clear();
+
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    // Clean up all timers on provider disposal
+    for (final timer in _completionTimers.values) {
+      timer.cancel();
+    }
+    _completionTimers.clear();
+    super.dispose();
   }
 }
 
